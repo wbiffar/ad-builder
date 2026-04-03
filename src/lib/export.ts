@@ -1,4 +1,4 @@
-import { toPng } from "html-to-image";
+import { toBlob } from "html-to-image";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { AdSize } from "./types";
@@ -8,7 +8,7 @@ import { AdSize } from "./types";
  * then restore after. This ensures html-to-image captures the
  * full-resolution ad regardless of preview zoom level.
  */
-async function captureElement(element: HTMLElement, size: AdSize): Promise<string> {
+async function captureElement(element: HTMLElement, size: AdSize): Promise<Blob> {
   const parent = element.parentElement;
   const grandparent = parent?.parentElement;
 
@@ -29,13 +29,14 @@ async function captureElement(element: HTMLElement, size: AdSize): Promise<strin
   }
 
   try {
-    const dataUrl = await toPng(element, {
+    const blob = await toBlob(element, {
       width: size.width,
       height: size.height,
       pixelRatio: 2,
       cacheBust: true,
     });
-    return dataUrl;
+    if (!blob) throw new Error("Failed to capture ad");
+    return blob;
   } finally {
     // Restore original styles
     if (parent) {
@@ -51,20 +52,15 @@ async function captureElement(element: HTMLElement, size: AdSize): Promise<strin
 
 /**
  * Export a single ad element as a PNG at 2x resolution.
+ * Uses blob URL + saveAs for reliable cross-browser downloads.
  */
 export async function exportAdAsPng(
   element: HTMLElement,
   size: AdSize,
   filename?: string
 ): Promise<void> {
-  const dataUrl = await captureElement(element, size);
-
-  const link = document.createElement("a");
-  link.download = filename || `${size.name}-${size.width}x${size.height}.png`;
-  link.href = dataUrl;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const blob = await captureElement(element, size);
+  saveAs(blob, filename || `${size.name}-${size.width}x${size.height}.png`);
 }
 
 /**
@@ -84,23 +80,10 @@ export async function exportAllAdsAsZip(
     const element = elements.get(size.name);
     if (!element) continue;
 
-    const dataUrl = await captureElement(element, size);
-    const base64 = dataUrl.split(",")[1];
-    folder.file(`${size.name}-${size.width}x${size.height}.png`, base64, {
-      base64: true,
-    });
+    const blob = await captureElement(element, size);
+    folder.file(`${size.name}-${size.width}x${size.height}.png`, blob);
   }
 
-  const blob = await zip.generateAsync({ type: "blob" });
-  saveAs(blob, `${brandName || "funeral-home"}-ads.zip`);
-}
-
-/**
- * Get a data URL for a single ad (for preview/clipboard).
- */
-export async function getAdDataUrl(
-  element: HTMLElement,
-  size: AdSize
-): Promise<string> {
-  return captureElement(element, size);
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  saveAs(zipBlob, `${brandName || "funeral-home"}-ads.zip`);
 }
