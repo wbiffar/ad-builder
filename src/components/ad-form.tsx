@@ -3,6 +3,7 @@
 import React, { useCallback, useState, useRef } from "react";
 import { AdConfig, BrandColors, Tier, LayoutVariant, LogoPosition } from "@/lib/types";
 import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
+import { fileToDataUrl } from "@/lib/file-utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ export function AdForm({ config, onChange }: AdFormProps) {
   const processLogoFile = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) return;
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       update({ logoUrl: url });
 
       setIsExtractingColors(true);
@@ -86,23 +87,23 @@ export function AdForm({ config, onChange }: AdFormProps) {
   );
 
   const handleAdditionalImageUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       update({ additionalImageUrl: url });
     },
     [update]
   );
 
   const handleAdditionalImageDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setImageDragActive(false);
       const file = e.dataTransfer.files?.[0];
       if (!file || !file.type.startsWith("image/")) return;
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       update({ additionalImageUrl: url });
     },
     [update]
@@ -117,7 +118,7 @@ export function AdForm({ config, onChange }: AdFormProps) {
     async (file: File) => {
       if (!file.type.startsWith("image/")) return;
 
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       setInspirationUrl(url);
       setIsAnalyzing(true);
       setAnalysisError(null);
