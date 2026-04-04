@@ -12,13 +12,15 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { BorderPanel } from "@/components/design-elements/design-panel";
 
 type AdFormProps = {
   config: AdConfig;
   onChange: (config: AdConfig) => void;
+  onSaveBrand?: () => void;
 };
 
-export function AdForm({ config, onChange }: AdFormProps) {
+export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
   const [logoDragActive, setLogoDragActive] = useState(false);
@@ -276,6 +278,17 @@ export function AdForm({ config, onChange }: AdFormProps) {
           onChange={(e) => update({ funeralHomeName: e.target.value })}
           placeholder="e.g., Riverside Memorial"
         />
+        {onSaveBrand && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-2"
+            onClick={onSaveBrand}
+            disabled={!config.funeralHomeName}
+          >
+            Save Brand
+          </Button>
+        )}
       </div>
 
       {/* Logo Upload — with drag-and-drop */}
@@ -445,6 +458,12 @@ export function AdForm({ config, onChange }: AdFormProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Border — available for all tiers */}
+      <BorderPanel
+        elements={config.designElements}
+        onChange={(elements) => onChange({ ...config, designElements: elements })}
+      />
 
       {/* Tier Selector */}
       <div className="space-y-2">

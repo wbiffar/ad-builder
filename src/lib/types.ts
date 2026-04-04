@@ -111,7 +111,7 @@ export const DEFAULT_COLORS: BrandColors = {
 
 export const DEFAULT_DESIGN_ELEMENTS: DesignElements = {
   border: {
-    enabled: false,
+    enabled: true,
     style: "solid",
     width: 2,
     color: "#e9e9e9",

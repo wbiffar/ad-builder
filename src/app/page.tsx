@@ -10,6 +10,7 @@ import { DesignPanel, BorderPanel } from "@/components/design-elements/design-pa
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Download } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,7 +24,7 @@ export default function AdCreatorPage() {
   const [config, setConfig] = useState<AdConfig>(DEFAULT_AD_CONFIG);
   const [savedBrands, setSavedBrands] = useState<SavedBrand[]>([]);
   const [isExporting, setIsExporting] = useState(false);
-  const [previewScale, setPreviewScale] = useState(0.5);
+  const [previewScale, setPreviewScale] = useState(1);
   const adRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Load saved brands on mount
@@ -95,15 +96,23 @@ export default function AdCreatorPage() {
             <h1 className="text-lg font-bold text-foreground tracking-tight">Ad Creator</h1>
             <Badge variant="secondary" className="text-[10px]">Legacy.com</Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveBrand}
-              disabled={!config.funeralHomeName}
-            >
-              Save Brand
-            </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Scale:</span>
+              {[0.5, 0.75, 1].map((scale) => (
+                <button
+                  key={scale}
+                  className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                    previewScale === scale
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setPreviewScale(scale)}
+                >
+                  {Math.round(scale * 100)}%
+                </button>
+              ))}
+            </div>
             <Button
               size="sm"
               onClick={handleExportAll}
@@ -118,7 +127,7 @@ export default function AdCreatorPage() {
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
         <div className="flex gap-6">
           {/* Left sidebar — Form */}
-          <aside className="w-80 flex-shrink-0 space-y-6 max-h-[calc(100vh-5rem)] overflow-y-auto sticky top-20 pb-8">
+          <aside className="w-80 flex-shrink-0 max-h-[calc(100vh-5rem)] overflow-y-auto sticky top-20 pb-8 bg-card rounded-xl ring-1 ring-border/50 p-5 space-y-6 shadow-sm">
             {/* Saved Brands */}
             {savedBrands.length > 0 && (
               <Card className="p-4">
@@ -146,14 +155,7 @@ export default function AdCreatorPage() {
               </Card>
             )}
 
-            <AdForm config={config} onChange={setConfig} />
-
-            {/* Border — available for ALL tiers */}
-            <Separator />
-            <BorderPanel
-              elements={config.designElements}
-              onChange={(elements) => setConfig((prev) => ({ ...prev, designElements: elements }))}
-            />
+            <AdForm config={config} onChange={setConfig} onSaveBrand={handleSaveBrand} />
 
             {/* Additional design elements (Better tier only) */}
             {config.tier === "better" && (
@@ -167,77 +169,98 @@ export default function AdCreatorPage() {
 
           {/* Main content — Preview */}
           <main className="flex-1 min-w-0">
-            {/* Preview Controls */}
-            <div className="flex items-center justify-between mb-4 sticky top-20 bg-background z-10 pb-2">
-              <h2 className="text-sm font-semibold text-foreground">Preview — All Sizes</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Scale:</span>
-                {[0.35, 0.5, 0.75, 1].map((scale) => (
-                  <button
-                    key={scale}
-                    className={`text-xs px-2 py-0.5 rounded transition-colors ${
-                      previewScale === scale
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
-                    onClick={() => setPreviewScale(scale)}
-                  >
-                    {Math.round(scale * 100)}%
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Ad Previews */}
-            <div className="space-y-8">
-              {AD_SIZES.map((size) => (
-                <div key={size.name} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-semibold text-foreground">{size.label}</h3>
-                      <Badge variant="outline" className="text-[10px] font-mono">
-                        {size.width} x {size.height}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => handleExportSingle(size)}
-                      disabled={isExporting}
-                    >
-                      Download PNG
-                    </Button>
+            {/* Ad Previews — responsive grid */}
+            <div className="space-y-4">
+              {/* Row 1: Large Leaderboard (970x90) */}
+              <div className="space-y-1.5" style={{ width: 970 * previewScale }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[11px] font-semibold text-foreground">Large Leaderboard</h3>
+                    <Badge variant="outline" className="text-[9px] font-mono">970x90</Badge>
                   </div>
+                  <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[1])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
+                </div>
+                <div className="overflow-auto">
+                  <div style={{ width: 970 * previewScale, height: 90 * previewScale, position: "relative", overflow: "hidden" }}>
+                    <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+                      <AdRenderer config={config} size={AD_SIZES[1]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[1].name, el)} />
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                  <div className="bg-muted/30 rounded-lg border border-border p-4 overflow-auto">
-                    <div
-                      style={{
-                        width: size.width * previewScale,
-                        height: size.height * previewScale,
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          transform: `scale(${previewScale})`,
-                          transformOrigin: "top left",
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                        }}
-                      >
-                        <AdRenderer
-                          config={config}
-                          size={size}
-                          adRef={(el: HTMLDivElement | null) => setAdRef(size.name, el)}
-                        />
+              {/* Row 2: Leaderboard (728x90) */}
+              <div className="space-y-1.5" style={{ width: 728 * previewScale }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[11px] font-semibold text-foreground">Leaderboard</h3>
+                    <Badge variant="outline" className="text-[9px] font-mono">728x90</Badge>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[2])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
+                </div>
+                <div className="overflow-auto">
+                  <div style={{ width: 728 * previewScale, height: 90 * previewScale, position: "relative", overflow: "hidden" }}>
+                    <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+                      <AdRenderer config={config} size={AD_SIZES[2]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[2].name, el)} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Mobile Leaderboard (320x50) */}
+              <div className="space-y-1.5" style={{ width: 320 * previewScale }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[11px] font-semibold text-foreground">Mobile Leaderboard</h3>
+                    <Badge variant="outline" className="text-[9px] font-mono">320x50</Badge>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[4])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
+                </div>
+                <div className="overflow-auto">
+                  <div style={{ width: 320 * previewScale, height: 50 * previewScale, position: "relative", overflow: "hidden" }}>
+                    <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+                      <AdRenderer config={config} size={AD_SIZES[4]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[4].name, el)} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 4: Half Page (300x600) + Medium Rectangle (300x250) side by side */}
+              <div className="flex gap-4 flex-wrap">
+                <div className="space-y-1.5 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-[11px] font-semibold text-foreground">Half Page</h3>
+                      <Badge variant="outline" className="text-[9px] font-mono">300x600</Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[0])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
+                  </div>
+                  <div className="overflow-auto">
+                    <div style={{ width: 300 * previewScale, height: 600 * previewScale, position: "relative", overflow: "hidden" }}>
+                      <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+                        <AdRenderer config={config} size={AD_SIZES[0]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[0].name, el)} />
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+
+                <div className="space-y-1.5" style={{ width: 300 * previewScale }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-[11px] font-semibold text-foreground">Medium Rectangle</h3>
+                      <Badge variant="outline" className="text-[9px] font-mono">300x250</Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[3])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
+                  </div>
+                  <div className="overflow-auto">
+                    <div style={{ width: 300 * previewScale, height: 250 * previewScale, position: "relative", overflow: "hidden" }}>
+                      <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+                        <AdRenderer config={config} size={AD_SIZES[3]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[3].name, el)} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </main>
         </div>
