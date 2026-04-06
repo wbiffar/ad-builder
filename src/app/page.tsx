@@ -7,10 +7,11 @@ import { getSavedBrands, saveBrand, deleteBrand } from "@/lib/brand-storage";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
+import { InContextPreview } from "@/components/in-context-preview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Download } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ export default function AdCreatorPage() {
   const [savedBrands, setSavedBrands] = useState<SavedBrand[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
+  const [showPreview, setShowPreview] = useState(false);
   const adRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Load saved brands on mount
@@ -113,6 +115,13 @@ export default function AdCreatorPage() {
                 </button>
               ))}
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPreview(true)}
+            >
+              <Eye className="w-3.5 h-3.5 mr-1.5" /> Preview
+            </Button>
             <Button
               size="sm"
               onClick={handleExportAll}
@@ -256,6 +265,11 @@ export default function AdCreatorPage() {
           </main>
         </div>
       </div>
+
+      {/* In-context preview modal */}
+      {showPreview && (
+        <InContextPreview config={config} onClose={() => setShowPreview(false)} />
+      )}
     </div>
   );
 }
