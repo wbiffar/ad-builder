@@ -8,6 +8,7 @@ import {
   TaglineText,
   PhotoImage,
   AccentLineElement,
+  getFocusPosition,
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
@@ -26,19 +27,20 @@ function getVerticalJustify(position: string) {
 }
 
 export function MediumRectangle({ config, adRef }: AdTemplateProps) {
-  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment } = config;
+  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment, photoFocusPoint } = config;
   const bg = getGradientCSS(designElements, colors.background);
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const justify = getVerticalJustify(logoSettings.position);
   const accentLine = designElements.accentLine;
+  const fp = getFocusPosition(photoFocusPoint);
 
   // --- BUILDING SHOWCASE: photo hero with overlay ---
   if (templateStyle === "building-showcase" && additionalImageUrl) {
     return (
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
-        <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute" }} crossOrigin="anonymous" />
+        <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp, position: "absolute" }} crossOrigin="anonymous" />
         <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${colors.background}99 0%, ${colors.background}dd 55%, ${colors.background} 100%)` }} />
         <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", padding: 20, textAlign: "center", gap: 10 }}>
           {logoUrl && <LogoImage src={logoUrl} maxWidth={120} maxHeight={45} whiteContainer={wc} />}
@@ -57,7 +59,7 @@ export function MediumRectangle({ config, adRef }: AdTemplateProps) {
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           {logoUrl && <LogoImage src={logoUrl} maxWidth={110} maxHeight={40} whiteContainer={wc} />}
-          <PhotoImage src={additionalImageUrl} treatment={photoTreatment} width={photoTreatment === "circular" ? 90 : 160} height={photoTreatment === "circular" ? 90 : 80} fadeColor={colors.background} />
+          <PhotoImage src={additionalImageUrl} treatment={photoTreatment} width={photoTreatment === "circular" ? 90 : 160} height={photoTreatment === "circular" ? 90 : 80} fadeColor={colors.background} focusPoint={photoFocusPoint} />
           <TaglineText text={tagline} color={textColor} fontSize={13} maxWidth={240} />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={11} padding="6px 18px" />
         </div>

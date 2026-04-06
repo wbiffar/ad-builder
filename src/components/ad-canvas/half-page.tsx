@@ -8,6 +8,7 @@ import {
   TaglineText,
   PhotoImage,
   AccentLineElement,
+  getFocusPosition,
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
@@ -26,7 +27,7 @@ function getVerticalLayout(position: string) {
 }
 
 export function HalfPage({ config, adRef }: AdTemplateProps) {
-  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment } = config;
+  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment, photoFocusPoint } = config;
   const bg = getGradientCSS(designElements, colors.background);
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
@@ -45,7 +46,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
         </div>
         {/* Photo area */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-          <PhotoImage src={additionalImageUrl} treatment={photoTreatment === "fade" ? "fade" : "rectangular"} width="100%" height="100%" fadeColor={colors.background} />
+          <PhotoImage src={additionalImageUrl} treatment={photoTreatment === "fade" ? "fade" : "rectangular"} width="100%" height="100%" fadeColor={colors.background} focusPoint={photoFocusPoint} />
         </div>
         {/* CTA area */}
         <div style={{ background: bg, padding: "16px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -71,6 +72,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
             width={photoTreatment === "circular" ? 160 : 240}
             height={photoTreatment === "circular" ? 160 : 160}
             fadeColor={colors.background}
+            focusPoint={photoFocusPoint}
           />
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
@@ -82,7 +84,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   // --- RICH & TRADITIONAL: dark bg, script tagline, accent line, elegant spacing ---
   if (templateStyle === "rich-traditional") {
     return (
-      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
+      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.logoOrder }}>
           {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} />}
@@ -99,7 +101,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
 
   // --- CLEAN & MINIMAL (default): clean vertical stack ---
   return (
-    <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
+    <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 32, order: layout.logoOrder }}>
         {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} />}

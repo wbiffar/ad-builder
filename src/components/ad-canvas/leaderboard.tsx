@@ -8,6 +8,7 @@ import {
   TaglineText,
   PhotoImage,
   AccentLineElement,
+  getFocusPosition,
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
@@ -29,13 +30,14 @@ export function LeaderboardTemplate({
   width,
   height,
 }: AdTemplateProps & { width: number; height: number }) {
-  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment } = config;
+  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment, photoFocusPoint } = config;
   const bg = getGradientCSS(designElements, colors.background);
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const order = getHorizontalOrder(logoSettings.position);
   const accentLine = designElements.accentLine;
+  const fp = getFocusPosition(photoFocusPoint);
 
   const isLarge = width >= 970;
   const logoMaxW = isLarge ? 120 : 100;
@@ -50,7 +52,7 @@ export function LeaderboardTemplate({
     return (
       <div ref={adRef} style={{ width, height, position: "relative", overflow: "hidden", display: "flex", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
         <div style={{ width: "35%", height: "100%", overflow: "hidden", flexShrink: 0, position: "relative" }}>
-          <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} crossOrigin="anonymous" />
+          <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp }} crossOrigin="anonymous" />
           {logoUrl && (
             <div style={{ position: "absolute", bottom: 6, left: 6, zIndex: 2 }}>
               <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer />
@@ -76,7 +78,7 @@ export function LeaderboardTemplate({
         <div style={{ flex: 1, background: bg, display: "flex", alignItems: "center", padding: "0 16px", gap: 12 }}>
           <div style={{ order: order.logoOrder, flexShrink: 0 }}>{logoEl}</div>
           <div style={{ overflow: "hidden", flexShrink: 0, borderRadius: photoTreatment === "circular" ? "50%" : 0, width: height - 16, height: height - 16 }}>
-            <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} crossOrigin="anonymous" />
+            <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp }} crossOrigin="anonymous" />
           </div>
           {accentLine.enabled && (
             <div style={{ width: accentLine.width, height: "60%", backgroundColor: accentLine.color, flexShrink: 0 }} />

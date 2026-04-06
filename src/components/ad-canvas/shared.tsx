@@ -1,9 +1,14 @@
 "use client";
 
 import React from "react";
-import { AdConfig, DesignElements, PhotoTreatment, AccentLine } from "@/lib/types";
+import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine } from "@/lib/types";
 import { getContrastColor } from "@/lib/color-utils";
 import { getIconById, getIllustrationById } from "@/lib/design-assets";
+
+/** Returns a CSS object-position value from a focus point. */
+export function getFocusPosition(fp?: PhotoFocusPoint): string {
+  return fp ? `${fp.x}% ${fp.y}%` : "center";
+}
 
 export type AdTemplateProps = {
   config: AdConfig;
@@ -283,6 +288,7 @@ export function PhotoImage({
   height,
   fadeColor,
   className,
+  focusPoint,
 }: {
   src: string;
   treatment: PhotoTreatment;
@@ -290,7 +296,10 @@ export function PhotoImage({
   height: number | string;
   fadeColor?: string;
   className?: string;
+  focusPoint?: { x: number; y: number };
 }) {
+  const objectPosition = focusPoint ? `${focusPoint.x}% ${focusPoint.y}%` : "center";
+
   if (treatment === "circular") {
     const size = typeof width === "number" && typeof height === "number"
       ? Math.min(width, height)
@@ -309,7 +318,7 @@ export function PhotoImage({
         <img
           src={src}
           alt=""
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition }}
           crossOrigin="anonymous"
         />
       </div>
@@ -323,7 +332,7 @@ export function PhotoImage({
         <img
           src={src}
           alt=""
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition }}
           crossOrigin="anonymous"
         />
         <div
@@ -343,7 +352,7 @@ export function PhotoImage({
       <img
         src={src}
         alt=""
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition }}
         crossOrigin="anonymous"
       />
     </div>

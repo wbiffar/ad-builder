@@ -20,7 +20,10 @@ type AdFormProps = {
   onSaveBrand?: () => void;
 };
 
-export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
+export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps) {
+  // Ensure photoFocusPoint exists (handles stale state from before this field was added)
+  const config = { ...rawConfig, photoFocusPoint: rawConfig.photoFocusPoint ?? { x: 50, y: 50 } };
+
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
   const [logoDragActive, setLogoDragActive] = useState(false);
@@ -88,14 +91,22 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
     [processLogoFile]
   );
 
+  const applyPhoto = useCallback(
+    (url: string) => {
+      const needsPhotoTemplate = config.templateStyle !== "building-showcase" && config.templateStyle !== "people-first";
+      update({ additionalImageUrl: url, ...(needsPhotoTemplate ? { templateStyle: "building-showcase" as TemplateStyle } : {}) });
+    },
+    [config.templateStyle, update]
+  );
+
   const handleAdditionalImageUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const url = await fileToDataUrl(file);
-      update({ additionalImageUrl: url });
+      applyPhoto(url);
     },
-    [update]
+    [applyPhoto]
   );
 
   const handleAdditionalImageDrop = useCallback(
@@ -106,9 +117,9 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
       const file = e.dataTransfer.files?.[0];
       if (!file || !file.type.startsWith("image/")) return;
       const url = await fileToDataUrl(file);
-      update({ additionalImageUrl: url });
+      applyPhoto(url);
     },
-    [update]
+    [applyPhoto]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -356,12 +367,40 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
         >
           {config.additionalImageUrl ? (
             <div className="space-y-2">
-              <img
-                src={config.additionalImageUrl}
-                alt="Additional image preview"
-                className="max-h-16 mx-auto object-contain"
-              />
-              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ additionalImageUrl: null }); }}>
+              {/* Focal point picker */}
+              <div
+                className="relative mx-auto cursor-crosshair"
+                style={{ maxHeight: 160 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                  const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                  update({ photoFocusPoint: { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) } });
+                }}
+              >
+                <img
+                  src={config.additionalImageUrl}
+                  alt="Additional image preview"
+                  className="max-h-40 mx-auto object-contain rounded"
+                  draggable={false}
+                />
+                {/* Focus point indicator */}
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${config.photoFocusPoint.x}%`,
+                    top: `${config.photoFocusPoint.y}%`,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                >
+                  <div className="w-5 h-5 rounded-full border-2 border-white shadow-md" style={{ background: "rgba(59, 130, 246, 0.5)" }}>
+                    <div className="w-1.5 h-1.5 rounded-full bg-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground text-center">Click to set focus point</p>
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ additionalImageUrl: null, photoFocusPoint: { x: 50, y: 50 } }); }}>
                 Remove
               </Button>
             </div>

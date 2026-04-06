@@ -97,6 +97,8 @@ export type LogoSettings = {
   position: LogoPosition;
 };
 
+export type PhotoFocusPoint = { x: number; y: number };
+
 export type AdConfig = {
   funeralHomeName: string;
   logoUrl: string | null;
@@ -108,6 +110,7 @@ export type AdConfig = {
   templateStyle: TemplateStyle;
   photoTreatment: PhotoTreatment;
   additionalImageUrl: string | null;
+  photoFocusPoint: PhotoFocusPoint;
   designElements: DesignElements;
   logoSettings: LogoSettings;
 };
@@ -189,6 +192,7 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   templateStyle: "clean-minimal",
   photoTreatment: "rectangular",
   additionalImageUrl: null,
+  photoFocusPoint: { x: 50, y: 50 },
   designElements: DEFAULT_DESIGN_ELEMENTS,
   logoSettings: {
     whiteContainer: false,
