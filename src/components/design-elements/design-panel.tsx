@@ -30,7 +30,7 @@ type DesignPanelProps = {
 };
 
 /**
- * Border controls — used by both Good and Better tiers.
+ * Border controls — used by all tiers.
  */
 export function BorderPanel({
   elements,
@@ -84,13 +84,64 @@ export function BorderPanel({
 }
 
 /**
- * Full design elements panel — Better tier only (gradient, shape, icon, illustration).
- * Border is handled separately by BorderPanel.
+ * Gradient controls — always available.
  */
-export function DesignPanel({ elements, colors, onChange }: DesignPanelProps) {
+export function GradientPanel({
+  elements,
+  onChange,
+}: {
+  elements: DesignElements;
+  onChange: (elements: DesignElements) => void;
+}) {
   const updateGradient = (partial: Partial<DesignElementGradient>) =>
     onChange({ ...elements, gradient: { ...elements.gradient, ...partial } });
 
+  return (
+    <Card>
+      <CardHeader className="pb-2 pt-3 px-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xs font-semibold">Gradient</CardTitle>
+          <Switch checked={elements.gradient.enabled} onCheckedChange={(checked) => updateGradient({ enabled: checked })} />
+        </div>
+      </CardHeader>
+      {elements.gradient.enabled && (
+        <CardContent className="px-4 pb-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px]">Type</Label>
+              <Select value={elements.gradient.type} onValueChange={(v) => { if (v) updateGradient({ type: v as "linear" | "radial" }); }}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="linear">Linear</SelectItem>
+                  <SelectItem value="radial">Radial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {elements.gradient.type === "linear" && (
+              <div>
+                <Label className="text-[10px]">Direction: {elements.gradient.direction}deg</Label>
+                <RangeSlider value={elements.gradient.direction} onChange={(v) => updateGradient({ direction: v })} min={0} max={360} step={15} className="mt-1" />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {elements.gradient.stops.map((stop, i) => (
+              <div key={i} className="flex-1 space-y-1">
+                <Label className="text-[10px]">Stop {i + 1}</Label>
+                <input type="color" value={stop.color} onChange={(e) => { const stops = [...elements.gradient.stops]; stops[i] = { ...stops[i], color: e.target.value }; updateGradient({ stops }); }} className="w-full h-7 rounded border cursor-pointer" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Labs panel — Shape, Icon, Illustration controls (hidden behind Labs toggle).
+ */
+export function LabsDesignPanel({ elements, colors, onChange }: DesignPanelProps) {
   const updateIcon = (partial: Partial<DesignElementIcon>) =>
     onChange({ ...elements, icon: { ...elements.icon, ...partial } });
 
@@ -102,48 +153,6 @@ export function DesignPanel({ elements, colors, onChange }: DesignPanelProps) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-foreground">Design Elements</h3>
-
-      {/* Gradient */}
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xs font-semibold">Gradient</CardTitle>
-            <Switch checked={elements.gradient.enabled} onCheckedChange={(checked) => updateGradient({ enabled: checked })} />
-          </div>
-        </CardHeader>
-        {elements.gradient.enabled && (
-          <CardContent className="px-4 pb-3 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-[10px]">Type</Label>
-                <Select value={elements.gradient.type} onValueChange={(v) => { if (v) updateGradient({ type: v as "linear" | "radial" }); }}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="linear">Linear</SelectItem>
-                    <SelectItem value="radial">Radial</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {elements.gradient.type === "linear" && (
-                <div>
-                  <Label className="text-[10px]">Direction: {elements.gradient.direction}deg</Label>
-                  <RangeSlider value={elements.gradient.direction} onChange={(v) => updateGradient({ direction: v })} min={0} max={360} step={15} className="mt-1" />
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {elements.gradient.stops.map((stop, i) => (
-                <div key={i} className="flex-1 space-y-1">
-                  <Label className="text-[10px]">Stop {i + 1}</Label>
-                  <input type="color" value={stop.color} onChange={(e) => { const stops = [...elements.gradient.stops]; stops[i] = { ...stops[i], color: e.target.value }; updateGradient({ stops }); }} className="w-full h-7 rounded border cursor-pointer" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
       {/* Shape */}
       <Card>
         <CardHeader className="pb-2 pt-3 px-4">
@@ -305,6 +314,19 @@ export function DesignPanel({ elements, colors, onChange }: DesignPanelProps) {
           </CardContent>
         )}
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Full design elements panel — kept for backward compat.
+ */
+export function DesignPanel({ elements, colors, onChange }: DesignPanelProps) {
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-foreground">Design Elements</h3>
+      <GradientPanel elements={elements} onChange={onChange} />
+      <LabsDesignPanel elements={elements} colors={colors} onChange={onChange} />
     </div>
   );
 }

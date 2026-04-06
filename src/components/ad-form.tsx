@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useState, useRef } from "react";
-import { AdConfig, BrandColors, Tier, LayoutVariant, LogoPosition } from "@/lib/types";
+import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, LogoPosition } from "@/lib/types";
 import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
 import { fileToDataUrl } from "@/lib/file-utils";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { BorderPanel } from "@/components/design-elements/design-panel";
+import { BorderPanel, GradientPanel, LabsDesignPanel } from "@/components/design-elements/design-panel";
 
 type AdFormProps = {
   config: AdConfig;
@@ -161,6 +161,7 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
             position: a.layout?.logoPosition ?? config.logoSettings.position,
           },
           variant: a.layout?.variant ?? config.variant,
+          templateStyle: a.layout?.templateStyle ?? config.templateStyle,
         };
 
         onChange({ ...config, ...newConfig });
@@ -194,81 +195,10 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
     [processInspirationFile]
   );
 
+  const [labsOpen, setLabsOpen] = useState(false);
+
   return (
     <div className="space-y-6">
-      {/* Inspiration Image */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            Inspiration Image
-            <Badge variant="outline" className="text-[10px] font-normal">AI-powered</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div
-            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-              inspirationDragActive
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-primary/50"
-            }`}
-            onDragOver={handleDragOver}
-            onDragEnter={(e) => { e.preventDefault(); setInspirationDragActive(true); }}
-            onDragLeave={(e) => { e.preventDefault(); setInspirationDragActive(false); }}
-            onDrop={handleInspirationDrop}
-            onClick={() => !inspirationUrl && inspirationInputRef.current?.click()}
-          >
-            {inspirationUrl ? (
-              <div className="space-y-2">
-                <img
-                  src={inspirationUrl}
-                  alt="Inspiration"
-                  className="max-h-24 mx-auto object-contain rounded"
-                />
-                {isAnalyzing && (
-                  <p className="text-xs text-primary font-medium animate-pulse">
-                    Analyzing design...
-                  </p>
-                )}
-                {analysisDescription && (
-                  <p className="text-xs text-muted-foreground italic">{analysisDescription}</p>
-                )}
-                {analysisError && (
-                  <p className="text-xs text-red-500">{analysisError}</p>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setInspirationUrl(null);
-                    setAnalysisDescription(null);
-                    setAnalysisError(null);
-                  }}
-                >
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <div>
-                <div className="text-muted-foreground text-xs">
-                  {inspirationDragActive ? "Drop image here" : "Drop an ad you like, or click to upload"}
-                </div>
-                <div className="text-muted-foreground text-[10px] mt-0.5">
-                  AI will match its colors, layout, and style
-                </div>
-                <input
-                  ref={inspirationInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={handleInspirationUpload}
-                />
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Funeral Home Name */}
       <div className="space-y-2">
         <Label htmlFor="name" className="text-sm font-semibold">Funeral Home Name</Label>
@@ -404,6 +334,72 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
         />
       </div>
 
+      {/* Photo */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">
+          Photo
+          {(config.templateStyle === "building-showcase" || config.templateStyle === "people-first") && (
+            <span className="text-amber-600 text-[10px] font-normal ml-1.5">Required for this template</span>
+          )}
+        </Label>
+        <div
+          className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+            imageDragActive
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-primary/50"
+          }`}
+          onDragOver={handleDragOver}
+          onDragEnter={(e) => { e.preventDefault(); setImageDragActive(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setImageDragActive(false); }}
+          onDrop={handleAdditionalImageDrop}
+          onClick={() => !config.additionalImageUrl && imageInputRef.current?.click()}
+        >
+          {config.additionalImageUrl ? (
+            <div className="space-y-2">
+              <img
+                src={config.additionalImageUrl}
+                alt="Additional image preview"
+                className="max-h-16 mx-auto object-contain"
+              />
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ additionalImageUrl: null }); }}>
+                Remove
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <div className="text-muted-foreground text-xs">
+                {imageDragActive ? "Drop image here" : "Drop image here or click to upload"}
+              </div>
+              <div className="text-muted-foreground text-[10px] mt-0.5">Building, staff, or scenic photo</div>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={handleAdditionalImageUpload}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Photo Treatment — shown when image uploaded */}
+        {config.additionalImageUrl && (
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs">Photo treatment</Label>
+            <Tabs
+              value={config.photoTreatment}
+              onValueChange={(v) => update({ photoTreatment: v as PhotoTreatment })}
+            >
+              <TabsList className="w-full">
+                <TabsTrigger value="rectangular" className="flex-1 text-xs">Rectangle</TabsTrigger>
+                <TabsTrigger value="circular" className="flex-1 text-xs">Circular</TabsTrigger>
+                <TabsTrigger value="fade" className="flex-1 text-xs">Fade</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
+      </div>
+
       {/* Brand Colors */}
       <Card>
         <CardHeader className="pb-3">
@@ -459,92 +455,237 @@ export function AdForm({ config, onChange, onSaveBrand }: AdFormProps) {
         </CardContent>
       </Card>
 
-      {/* Border — available for all tiers */}
+      {/* Template Style */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Template Style</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ["clean-minimal", "Clean & Minimal", "Light bg, modern type"],
+              ["rich-traditional", "Rich & Traditional", "Dark bg, script tagline"],
+              ["building-showcase", "Building Showcase", "Building photo hero"],
+              ["people-first", "People First", "Owner/staff photo focus"],
+            ] as [TemplateStyle, string, string][]).map(([value, label, desc]) => {
+              const needsImage = value === "building-showcase" || value === "people-first";
+              const isActive = config.templateStyle === value;
+              return (
+                <button
+                  key={value}
+                  className={`text-left p-2.5 rounded-lg border-2 transition-all ${
+                    isActive
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/30"
+                  } ${needsImage && !config.additionalImageUrl ? "opacity-60" : ""}`}
+                  onClick={() => update({ templateStyle: value })}
+                >
+                  <div className="text-xs font-semibold">{label}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{desc}</div>
+                  {needsImage && !config.additionalImageUrl && (
+                    <div className="text-[9px] text-amber-600 mt-1">Photo required</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Border */}
       <BorderPanel
         elements={config.designElements}
         onChange={(elements) => onChange({ ...config, designElements: elements })}
       />
 
-      {/* Tier Selector */}
-      <div className="space-y-2">
-        <Label className="text-sm font-semibold">Tier</Label>
-        <Tabs value={config.tier} onValueChange={(v) => update({ tier: v as Tier })}>
-          <TabsList className="w-full">
-            <TabsTrigger value="good" className="flex-1">
-              Good <Badge variant="secondary" className="ml-1.5 text-[10px]">Basic</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="better" className="flex-1">
-              Better <Badge variant="secondary" className="ml-1.5 text-[10px]">Mid-tier</Badge>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <p className="text-xs text-muted-foreground">
-          {config.tier === "good"
-            ? "Clean, auto-generated ads from logo + tagline + CTA."
-            : "Additional image, layout variants, and design elements."}
-        </p>
+      {/* Accent Line */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold">Accent Line</CardTitle>
+            <Switch
+              checked={config.designElements.accentLine.enabled}
+              onCheckedChange={(checked) =>
+                onChange({
+                  ...config,
+                  designElements: {
+                    ...config.designElements,
+                    accentLine: { ...config.designElements.accentLine, enabled: checked },
+                  },
+                })
+              }
+            />
+          </div>
+        </CardHeader>
+        {config.designElements.accentLine.enabled && (
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Orientation</Label>
+              <Tabs
+                value={config.designElements.accentLine.orientation}
+                onValueChange={(v) =>
+                  onChange({
+                    ...config,
+                    designElements: {
+                      ...config.designElements,
+                      accentLine: { ...config.designElements.accentLine, orientation: v as "horizontal" | "vertical" },
+                    },
+                  })
+                }
+              >
+                <TabsList className="w-full">
+                  <TabsTrigger value="horizontal" className="flex-1 text-xs">Horizontal</TabsTrigger>
+                  <TabsTrigger value="vertical" className="flex-1 text-xs">Vertical</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Color</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={config.designElements.accentLine.color}
+                  onChange={(e) =>
+                    onChange({
+                      ...config,
+                      designElements: {
+                        ...config.designElements,
+                        accentLine: { ...config.designElements.accentLine, color: e.target.value },
+                      },
+                    })
+                  }
+                  className="w-8 h-8 rounded border border-border cursor-pointer"
+                />
+                <Input
+                  value={config.designElements.accentLine.color}
+                  onChange={(e) =>
+                    onChange({
+                      ...config,
+                      designElements: {
+                        ...config.designElements,
+                        accentLine: { ...config.designElements.accentLine, color: e.target.value },
+                      },
+                    })
+                  }
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Gradient — always available */}
+      <GradientPanel
+        elements={config.designElements}
+        onChange={(elements) => onChange({ ...config, designElements: elements })}
+      />
+
+      {/* Labs — collapsible section for experimental features */}
+      <div className="space-y-3">
+        <button
+          className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg border border-dashed border-border hover:border-primary/40 transition-colors text-left"
+          onClick={() => setLabsOpen(!labsOpen)}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Labs</span>
+            <Badge variant="outline" className="text-[9px] font-normal">Experimental</Badge>
+          </div>
+          <svg
+            className={`w-4 h-4 text-muted-foreground transition-transform ${labsOpen ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {labsOpen && (
+          <div className="space-y-4 pl-1">
+            {/* Inspiration Image */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  Inspiration Image
+                  <Badge variant="outline" className="text-[10px] font-normal">AI-powered</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div
+                  className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                    inspirationDragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50"
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragEnter={(e) => { e.preventDefault(); setInspirationDragActive(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); setInspirationDragActive(false); }}
+                  onDrop={handleInspirationDrop}
+                  onClick={() => !inspirationUrl && inspirationInputRef.current?.click()}
+                >
+                  {inspirationUrl ? (
+                    <div className="space-y-2">
+                      <img
+                        src={inspirationUrl}
+                        alt="Inspiration"
+                        className="max-h-24 mx-auto object-contain rounded"
+                      />
+                      {isAnalyzing && (
+                        <p className="text-xs text-primary font-medium animate-pulse">
+                          Analyzing design...
+                        </p>
+                      )}
+                      {analysisDescription && (
+                        <p className="text-xs text-muted-foreground italic">{analysisDescription}</p>
+                      )}
+                      {analysisError && (
+                        <p className="text-xs text-red-500">{analysisError}</p>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspirationUrl(null);
+                          setAnalysisDescription(null);
+                          setAnalysisError(null);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-muted-foreground text-xs">
+                        {inspirationDragActive ? "Drop image here" : "Drop an ad you like, or click to upload"}
+                      </div>
+                      <div className="text-muted-foreground text-[10px] mt-0.5">
+                        AI will match its colors, layout, and style
+                      </div>
+                      <input
+                        ref={inspirationInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={handleInspirationUpload}
+                      />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Shape, Icon, Illustration */}
+            <LabsDesignPanel
+              elements={config.designElements}
+              colors={config.colors}
+              onChange={(elements) => onChange({ ...config, designElements: elements })}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Better Tier Options */}
-      {config.tier === "better" && (
-        <>
-          {/* Additional Image — with drag-and-drop */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">Additional Image</Label>
-            <div
-              className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-                imageDragActive
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/50"
-              }`}
-              onDragOver={handleDragOver}
-              onDragEnter={(e) => { e.preventDefault(); setImageDragActive(true); }}
-              onDragLeave={(e) => { e.preventDefault(); setImageDragActive(false); }}
-              onDrop={handleAdditionalImageDrop}
-              onClick={() => !config.additionalImageUrl && imageInputRef.current?.click()}
-            >
-              {config.additionalImageUrl ? (
-                <div className="space-y-2">
-                  <img
-                    src={config.additionalImageUrl}
-                    alt="Additional image preview"
-                    className="max-h-16 mx-auto object-contain"
-                  />
-                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ additionalImageUrl: null }); }}>
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <div>
-                  <div className="text-muted-foreground text-xs">
-                    {imageDragActive ? "Drop image here" : "Drop image here or click to upload"}
-                  </div>
-                  <div className="text-muted-foreground text-[10px] mt-0.5">Staff photo, building, or scenic image</div>
-                  <input
-                    ref={imageInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    className="hidden"
-                    onChange={handleAdditionalImageUpload}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Layout Variant */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">Layout Variant</Label>
-            <Tabs value={config.variant} onValueChange={(v) => update({ variant: v as LayoutVariant })}>
-              <TabsList className="w-full">
-                <TabsTrigger value="a" className="flex-1 text-xs">Clean</TabsTrigger>
-                <TabsTrigger value="b" className="flex-1 text-xs">Photo BG</TabsTrigger>
-                <TabsTrigger value="c" className="flex-1 text-xs">Split</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </>
-      )}
     </div>
   );
 }

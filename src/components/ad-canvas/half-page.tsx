@@ -5,6 +5,9 @@ import {
   AdTemplateProps,
   CtaButton,
   LogoImage,
+  TaglineText,
+  PhotoImage,
+  AccentLineElement,
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
@@ -14,12 +17,6 @@ import { getContrastColor } from "@/lib/color-utils";
 const WIDTH = 300;
 const HEIGHT = 600;
 
-/**
- * Maps logoSettings.position to flexbox justifyContent for vertical layouts.
- * "top" = logo at top, tagline + CTA fill center/bottom
- * "center" = everything centered (default look)
- * "bottom" = logo at bottom, tagline + CTA fill center/top
- */
 function getVerticalLayout(position: string) {
   switch (position) {
     case "top": return { justify: "flex-start" as const, logoOrder: 0, contentOrder: 1 };
@@ -29,57 +26,78 @@ function getVerticalLayout(position: string) {
 }
 
 export function HalfPage({ config, adRef }: AdTemplateProps) {
-  const { colors, logoUrl, tagline, ctaText, tier, variant, additionalImageUrl, designElements, logoSettings } = config;
+  const { colors, logoUrl, tagline, ctaText, templateStyle, additionalImageUrl, designElements, logoSettings, photoTreatment } = config;
   const bg = getGradientCSS(designElements, colors.background);
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const layout = getVerticalLayout(logoSettings.position);
+  const accentLine = designElements.accentLine;
 
-  // Better tier variant B: photo background with overlay
-  if (tier === "better" && variant === "b" && additionalImageUrl) {
+  // --- BUILDING SHOWCASE: large photo hero with content below ---
+  if (templateStyle === "building-showcase" && additionalImageUrl) {
     return (
-      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
-        <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }} crossOrigin="anonymous" />
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", background: `linear-gradient(180deg, ${colors.background}cc 0%, ${colors.background}ee 60%, ${colors.background} 100%)` }} />
-        <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, height: "100%", padding: 32, textAlign: "center", gap: 32 }}>
-          <div style={{ order: layout.logoOrder }}>{logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={80} whiteContainer={wc} />}</div>
-          <div style={{ order: layout.contentOrder, display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
-            <div style={{ color: textColor, fontSize: 22, fontWeight: 600, lineHeight: 1.3, maxWidth: 240 }}>{tagline}</div>
-            <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
-          </div>
+      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", display: "flex", flexDirection: "column", ...borderStyles }}>
+        {/* Logo + tagline area */}
+        <div style={{ background: bg, padding: "20px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} />}
+          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} />
+        </div>
+        {/* Photo area */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          <PhotoImage src={additionalImageUrl} treatment={photoTreatment === "fade" ? "fade" : "rectangular"} width="100%" height="100%" fadeColor={colors.background} />
+        </div>
+        {/* CTA area */}
+        <div style={{ background: bg, padding: "16px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <AccentLineElement accentLine={accentLine} orientation="horizontal" />
+          <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
         </div>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       </div>
     );
   }
 
-  // Better tier variant C: split layout with photo
-  if (tier === "better" && variant === "c" && additionalImageUrl) {
-    const photoTop = logoSettings.position !== "top";
+  // --- PEOPLE FIRST: centered framed photo with warm feel ---
+  if (templateStyle === "people-first" && additionalImageUrl) {
     return (
-      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles, display: "flex", flexDirection: "column" }}>
-        {photoTop && (
-          <div style={{ width: "100%", height: "45%", overflow: "hidden" }}>
-            <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} crossOrigin="anonymous" />
-          </div>
-        )}
-        <div style={{ width: "100%", flex: 1, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", gap: 16 }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={140} maxHeight={60} whiteContainer={wc} />}
-          <div style={{ color: textColor, fontSize: 20, fontWeight: 600, lineHeight: 1.3, maxWidth: 240 }}>{tagline}</div>
-          <CtaButton text={ctaText} bgColor={colors.accent} fontSize={14} padding="10px 28px" />
-        </div>
-        {!photoTop && (
-          <div style={{ width: "100%", height: "45%", overflow: "hidden" }}>
-            <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} crossOrigin="anonymous" />
-          </div>
-        )}
+      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 16, ...borderStyles }}>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
+        <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} />}
+          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} />
+          <PhotoImage
+            src={additionalImageUrl}
+            treatment={photoTreatment}
+            width={photoTreatment === "circular" ? 160 : 240}
+            height={photoTreatment === "circular" ? 160 : 160}
+            fadeColor={colors.background}
+          />
+          <AccentLineElement accentLine={accentLine} orientation="horizontal" />
+          <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
+        </div>
       </div>
     );
   }
 
-  // Default / Good tier / Better variant A: clean vertical stack
+  // --- RICH & TRADITIONAL: dark bg, script tagline, accent line, elegant spacing ---
+  if (templateStyle === "rich-traditional") {
+    return (
+      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
+        <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
+        <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.logoOrder }}>
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} />}
+        </div>
+        <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.contentOrder }}>
+          <AccentLineElement accentLine={accentLine} orientation="horizontal" />
+          <TaglineText text={tagline} color={textColor} fontSize={26} isScript maxWidth={240} lineHeight={1.4} />
+          <AccentLineElement accentLine={accentLine} orientation="horizontal" />
+          <CtaButton text={ctaText} bgColor={colors.accent} fontSize={16} padding="14px 36px" />
+        </div>
+      </div>
+    );
+  }
+
+  // --- CLEAN & MINIMAL (default): clean vertical stack ---
   return (
     <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
@@ -87,7 +105,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
         {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} />}
       </div>
       <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 40, order: layout.contentOrder }}>
-        <div style={{ color: textColor, fontSize: 24, fontWeight: 600, lineHeight: 1.35, maxWidth: 240 }}>{tagline}</div>
+        <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} />
         <CtaButton text={ctaText} bgColor={colors.accent} fontSize={16} padding="14px 36px" />
       </div>
     </div>

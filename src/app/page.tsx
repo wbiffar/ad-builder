@@ -6,7 +6,7 @@ import { exportAdAsPng, exportAllAdsAsZip } from "@/lib/export";
 import { getSavedBrands, saveBrand, deleteBrand } from "@/lib/brand-storage";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
-import { DesignPanel, BorderPanel } from "@/components/design-elements/design-panel";
+// Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -156,15 +156,6 @@ export default function AdCreatorPage() {
             )}
 
             <AdForm config={config} onChange={setConfig} onSaveBrand={handleSaveBrand} />
-
-            {/* Additional design elements (Better tier only) */}
-            {config.tier === "better" && (
-              <DesignPanel
-                elements={config.designElements}
-                colors={config.colors}
-                onChange={(elements) => setConfig((prev) => ({ ...prev, designElements: elements }))}
-              />
-            )}
           </aside>
 
           {/* Main content — Preview */}

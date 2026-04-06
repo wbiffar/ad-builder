@@ -69,9 +69,26 @@ export type DesignElements = {
   icon: DesignElementIcon;
   illustration: DesignElementIllustration;
   shape: DesignElementShape;
+  accentLine: AccentLine;
 };
 
-export type LayoutVariant = "a" | "b" | "c";
+export type LayoutVariant = "a" | "b" | "c"; // legacy — kept for backward compat
+
+export type TemplateStyle =
+  | "clean-minimal"      // White/cream bg, modern sans-serif, lots of whitespace
+  | "rich-traditional"   // Dark brand bg, script tagline, gold accent line
+  | "building-showcase"  // Building photo as hero (requires additional image)
+  | "people-first";      // People photo framed/centered (requires additional image)
+
+export type PhotoTreatment = "rectangular" | "circular" | "fade";
+
+export type AccentLine = {
+  enabled: boolean;
+  orientation: "horizontal" | "vertical";
+  color: string;
+  width: number;
+  style: "solid" | "dashed" | "double";
+};
 
 export type LogoPosition = "top" | "center" | "bottom";
 
@@ -88,6 +105,8 @@ export type AdConfig = {
   colors: BrandColors;
   tier: Tier;
   variant: LayoutVariant;
+  templateStyle: TemplateStyle;
+  photoTreatment: PhotoTreatment;
   additionalImageUrl: string | null;
   designElements: DesignElements;
   logoSettings: LogoSettings;
@@ -109,11 +128,19 @@ export const DEFAULT_COLORS: BrandColors = {
   background: "#293548",
 };
 
+export const DEFAULT_ACCENT_LINE: AccentLine = {
+  enabled: false,
+  orientation: "horizontal",
+  color: "#dcb05e",
+  width: 2,
+  style: "solid",
+};
+
 export const DEFAULT_DESIGN_ELEMENTS: DesignElements = {
   border: {
     enabled: true,
     style: "solid",
-    width: 2,
+    width: 1,
     color: "#e9e9e9",
     radius: 0,
   },
@@ -148,6 +175,7 @@ export const DEFAULT_DESIGN_ELEMENTS: DesignElements = {
     opacity: 0.5,
     position: "bottom",
   },
+  accentLine: DEFAULT_ACCENT_LINE,
 };
 
 export const DEFAULT_AD_CONFIG: AdConfig = {
@@ -158,6 +186,8 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   colors: DEFAULT_COLORS,
   tier: "good",
   variant: "a",
+  templateStyle: "clean-minimal",
+  photoTreatment: "rectangular",
   additionalImageUrl: null,
   designElements: DEFAULT_DESIGN_ELEMENTS,
   logoSettings: {

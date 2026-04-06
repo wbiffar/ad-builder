@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AdConfig, DesignElements } from "@/lib/types";
+import { AdConfig, DesignElements, PhotoTreatment, AccentLine } from "@/lib/types";
 import { getContrastColor } from "@/lib/color-utils";
 import { getIconById, getIllustrationById } from "@/lib/design-assets";
 
@@ -241,4 +241,152 @@ export function getBorderStyles(elements: DesignElements): React.CSSProperties {
     border: `${elements.border.width}px ${elements.border.style} ${elements.border.color}`,
     borderRadius: elements.border.radius,
   };
+}
+
+/**
+ * Renders an accent/divider line.
+ */
+export function AccentLineElement({
+  accentLine,
+  orientation: overrideOrientation,
+}: {
+  accentLine: AccentLine;
+  orientation?: "horizontal" | "vertical";
+}) {
+  if (!accentLine.enabled) return null;
+  const dir = overrideOrientation || accentLine.orientation;
+  const isHorizontal = dir === "horizontal";
+
+  return (
+    <div
+      style={{
+        width: isHorizontal ? "80%" : accentLine.width,
+        height: isHorizontal ? accentLine.width : "60%",
+        backgroundColor: accentLine.color,
+        alignSelf: "center",
+        flexShrink: 0,
+        borderStyle: accentLine.style === "solid" ? undefined : accentLine.style,
+        borderWidth: accentLine.style !== "solid" ? accentLine.width : undefined,
+        borderColor: accentLine.style !== "solid" ? accentLine.color : undefined,
+      }}
+    />
+  );
+}
+
+/**
+ * Renders a photo with the specified treatment (rectangular, circular, fade).
+ */
+export function PhotoImage({
+  src,
+  treatment,
+  width,
+  height,
+  fadeColor,
+  className,
+}: {
+  src: string;
+  treatment: PhotoTreatment;
+  width: number | string;
+  height: number | string;
+  fadeColor?: string;
+  className?: string;
+}) {
+  if (treatment === "circular") {
+    const size = typeof width === "number" && typeof height === "number"
+      ? Math.min(width, height)
+      : typeof width === "number" ? width : 150;
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          overflow: "hidden",
+          flexShrink: 0,
+          border: "3px solid rgba(255,255,255,0.3)",
+        }}
+      >
+        <img
+          src={src}
+          alt=""
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          crossOrigin="anonymous"
+        />
+      </div>
+    );
+  }
+
+  if (treatment === "fade") {
+    const bg = fadeColor || "#ffffff";
+    return (
+      <div style={{ position: "relative", width, height, overflow: "hidden", flexShrink: 0 }}>
+        <img
+          src={src}
+          alt=""
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          crossOrigin="anonymous"
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `linear-gradient(180deg, transparent 30%, ${bg} 100%)`,
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Default: rectangular
+  return (
+    <div style={{ width, height, overflow: "hidden", flexShrink: 0 }}>
+      <img
+        src={src}
+        alt=""
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        crossOrigin="anonymous"
+      />
+    </div>
+  );
+}
+
+/**
+ * Tagline text component — uses script font for "rich-traditional" style.
+ */
+export function TaglineText({
+  text,
+  color,
+  fontSize,
+  isScript = false,
+  maxWidth,
+  lineHeight = 1.3,
+  style,
+}: {
+  text: string;
+  color: string;
+  fontSize: number;
+  isScript?: boolean;
+  maxWidth?: number;
+  lineHeight?: number;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      style={{
+        color,
+        fontSize,
+        fontWeight: isScript ? 400 : 600,
+        fontFamily: isScript
+          ? "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif"
+          : "'Inter', 'DM Sans', sans-serif",
+        fontStyle: isScript ? "italic" : "normal",
+        lineHeight,
+        maxWidth,
+        textAlign: "center",
+        ...style,
+      }}
+    >
+      {text}
+    </div>
+  );
 }
