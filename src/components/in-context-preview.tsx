@@ -348,7 +348,7 @@ export function InContextPreview({ config, onClose }: InContextPreviewProps) {
           background: DS.page,
           borderRadius: 12,
           overflow: "hidden",
-          width: 1280,
+          width: 1400,
           boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
           fontFamily: "'DM Sans', sans-serif",
         }}
@@ -394,7 +394,7 @@ export function InContextPreview({ config, onClose }: InContextPreviewProps) {
           </div>
 
           {/* Main content — Obituaries + Leaderboard ad */}
-          <div style={{ flex: 1, padding: "20px 20px 20px 0", maxWidth: 700, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ flex: 1, padding: "20px 20px 20px 0", maxWidth: 800, display: "flex", flexDirection: "column", gap: 16 }}>
             <ObituaryCard
               name="Noah Johnson"
               years="1993 — 2025"
