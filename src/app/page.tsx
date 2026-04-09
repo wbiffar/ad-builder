@@ -11,7 +11,7 @@ import { InContextPreview } from "@/components/in-context-preview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, Check } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -21,13 +21,104 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
+function AdCard({
+  size,
+  selected,
+  onToggle,
+  onExport,
+  isExporting,
+  previewScale,
+  className,
+  children,
+}: {
+  size: AdSize;
+  selected: boolean;
+  onToggle: (name: string) => void;
+  onExport: (size: AdSize) => void;
+  isExporting: boolean;
+  previewScale: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`space-y-1.5 ${className ?? ""}`} style={{ width: size.width * previewScale }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onToggle(size.name)}
+            className={`size-4 rounded border flex items-center justify-center transition-colors ${
+              selected
+                ? "bg-primary border-primary text-primary-foreground"
+                : "border-muted-foreground/40 hover:border-foreground"
+            }`}
+            aria-label={`${selected ? "Deselect" : "Select"} ${size.label}`}
+          >
+            {selected && <Check className="size-3" strokeWidth={3} />}
+          </button>
+          <h3 className={`text-[11px] font-semibold transition-colors ${selected ? "text-foreground" : "text-muted-foreground"}`}>{size.label}</h3>
+          <Badge variant="outline" className="text-[9px] font-mono">{size.width}x{size.height}</Badge>
+        </div>
+        <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => onExport(size)} disabled={isExporting}>
+          <Download className="size-3" /> PNG
+        </Button>
+      </div>
+      <div className={`overflow-auto transition-opacity ${selected ? "opacity-100" : "opacity-30"}`}>
+        <div style={{ width: size.width * previewScale, height: size.height * previewScale, position: "relative", overflow: "hidden" }}>
+          <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ConfigMap = Record<string, AdConfig>;
+
+const INITIAL_CONFIG_MAP: ConfigMap = Object.fromEntries(
+  AD_SIZES.map((s) => [s.name, DEFAULT_AD_CONFIG])
+);
+
 export default function AdCreatorPage() {
-  const [config, setConfig] = useState<AdConfig>(DEFAULT_AD_CONFIG);
+  const [configMap, setConfigMap] = useState<ConfigMap>(INITIAL_CONFIG_MAP);
   const [savedBrands, setSavedBrands] = useState<SavedBrand[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedAds, setSelectedAds] = useState<Set<string>>(
+    () => new Set(AD_SIZES.map((s) => s.name))
+  );
   const adRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // The form displays the config of the first selected ad
+  const firstSelected = AD_SIZES.find((s) => selectedAds.has(s.name))?.name ?? AD_SIZES[0].name;
+  const formConfig = configMap[firstSelected];
+
+  const toggleAd = useCallback((name: string) => {
+    setSelectedAds((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }, []);
+
+  // Apply form changes only to selected ads
+  const handleConfigChange = useCallback(
+    (newConfig: AdConfig) => {
+      setConfigMap((prev) => {
+        const next = { ...prev };
+        for (const name of selectedAds) {
+          next[name] = newConfig;
+        }
+        return next;
+      });
+    },
+    [selectedAds]
+  );
 
   // Load saved brands on mount
   useEffect(() => {
@@ -46,47 +137,50 @@ export default function AdCreatorPage() {
     async (size: AdSize) => {
       const el = adRefs.current.get(size.name);
       if (!el) return;
+      const adConfig = configMap[size.name];
       setIsExporting(true);
       try {
-        await exportAdAsPng(el, size, `${config.funeralHomeName || "ad"}-${size.name}-${size.width}x${size.height}.png`);
+        await exportAdAsPng(el, size, `${adConfig.funeralHomeName || "ad"}-${size.name}-${size.width}x${size.height}.png`);
       } finally {
         setIsExporting(false);
       }
     },
-    [config.funeralHomeName]
+    [configMap]
   );
 
   const handleExportAll = useCallback(async () => {
+    const selected = AD_SIZES.filter((s) => selectedAds.has(s.name));
+    if (selected.length === 0) return;
     setIsExporting(true);
     try {
-      await exportAllAdsAsZip(adRefs.current, AD_SIZES, config.funeralHomeName || "funeral-home");
+      await exportAllAdsAsZip(adRefs.current, selected, formConfig.funeralHomeName || "funeral-home");
     } finally {
       setIsExporting(false);
     }
-  }, [config.funeralHomeName]);
+  }, [formConfig.funeralHomeName, selectedAds]);
 
   const handleSaveBrand = useCallback(() => {
-    if (!config.funeralHomeName) return;
+    if (!formConfig.funeralHomeName) return;
     saveBrand({
-      name: config.funeralHomeName,
-      logoUrl: config.logoUrl,
-      colors: config.colors,
+      name: formConfig.funeralHomeName,
+      logoUrl: formConfig.logoUrl,
+      colors: formConfig.colors,
     });
     setSavedBrands(getSavedBrands());
-  }, [config]);
+  }, [formConfig]);
 
   const handleLoadBrand = useCallback(
     (brandId: string) => {
       const brand = savedBrands.find((b) => b.id === brandId);
       if (!brand) return;
-      setConfig((prev) => ({
-        ...prev,
+      handleConfigChange({
+        ...formConfig,
         funeralHomeName: brand.name,
         logoUrl: brand.logoUrl,
         colors: brand.colors,
-      }));
+      });
     },
-    [savedBrands]
+    [savedBrands, formConfig, handleConfigChange]
   );
 
   return (
@@ -125,9 +219,9 @@ export default function AdCreatorPage() {
             <Button
               size="sm"
               onClick={handleExportAll}
-              disabled={isExporting}
+              disabled={isExporting || selectedAds.size === 0}
             >
-              {isExporting ? "Exporting..." : "Download All"}
+              {isExporting ? "Exporting..." : `Download${selectedAds.size < AD_SIZES.length ? ` (${selectedAds.size})` : " All"}`}
             </Button>
           </div>
         </div>
@@ -164,7 +258,7 @@ export default function AdCreatorPage() {
               </Card>
             )}
 
-            <AdForm config={config} onChange={setConfig} onSaveBrand={handleSaveBrand} />
+            <AdForm config={formConfig} onChange={handleConfigChange} onSaveBrand={handleSaveBrand} />
           </aside>
 
           {/* Main content — Preview */}
@@ -172,94 +266,29 @@ export default function AdCreatorPage() {
             {/* Ad Previews — responsive grid */}
             <div className="space-y-4">
               {/* Row 1: Large Leaderboard (970x90) */}
-              <div className="space-y-1.5" style={{ width: 970 * previewScale }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-[11px] font-semibold text-foreground">Large Leaderboard</h3>
-                    <Badge variant="outline" className="text-[9px] font-mono">970x90</Badge>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[1])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
-                </div>
-                <div className="overflow-auto">
-                  <div style={{ width: 970 * previewScale, height: 90 * previewScale, position: "relative", overflow: "hidden" }}>
-                    <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
-                      <AdRenderer config={config} size={AD_SIZES[1]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[1].name, el)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AdCard size={AD_SIZES[1]} selected={selectedAds.has(AD_SIZES[1].name)} onToggle={toggleAd} onExport={handleExportSingle} isExporting={isExporting} previewScale={previewScale}>
+                <AdRenderer config={configMap[AD_SIZES[1].name]} size={AD_SIZES[1]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[1].name, el)} />
+              </AdCard>
 
               {/* Row 2: Leaderboard (728x90) */}
-              <div className="space-y-1.5" style={{ width: 728 * previewScale }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-[11px] font-semibold text-foreground">Leaderboard</h3>
-                    <Badge variant="outline" className="text-[9px] font-mono">728x90</Badge>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[2])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
-                </div>
-                <div className="overflow-auto">
-                  <div style={{ width: 728 * previewScale, height: 90 * previewScale, position: "relative", overflow: "hidden" }}>
-                    <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
-                      <AdRenderer config={config} size={AD_SIZES[2]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[2].name, el)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AdCard size={AD_SIZES[2]} selected={selectedAds.has(AD_SIZES[2].name)} onToggle={toggleAd} onExport={handleExportSingle} isExporting={isExporting} previewScale={previewScale}>
+                <AdRenderer config={configMap[AD_SIZES[2].name]} size={AD_SIZES[2]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[2].name, el)} />
+              </AdCard>
 
               {/* Row 3: Mobile Leaderboard (320x50) */}
-              <div className="space-y-1.5" style={{ width: 320 * previewScale }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-[11px] font-semibold text-foreground">Mobile Leaderboard</h3>
-                    <Badge variant="outline" className="text-[9px] font-mono">320x50</Badge>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[4])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
-                </div>
-                <div className="overflow-auto">
-                  <div style={{ width: 320 * previewScale, height: 50 * previewScale, position: "relative", overflow: "hidden" }}>
-                    <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
-                      <AdRenderer config={config} size={AD_SIZES[4]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[4].name, el)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AdCard size={AD_SIZES[4]} selected={selectedAds.has(AD_SIZES[4].name)} onToggle={toggleAd} onExport={handleExportSingle} isExporting={isExporting} previewScale={previewScale}>
+                <AdRenderer config={configMap[AD_SIZES[4].name]} size={AD_SIZES[4]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[4].name, el)} />
+              </AdCard>
 
               {/* Row 4: Half Page (300x600) + Medium Rectangle (300x250) side by side */}
               <div className="flex gap-4 flex-wrap">
-                <div className="space-y-1.5 flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="text-[11px] font-semibold text-foreground">Half Page</h3>
-                      <Badge variant="outline" className="text-[9px] font-mono">300x600</Badge>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[0])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
-                  </div>
-                  <div className="overflow-auto">
-                    <div style={{ width: 300 * previewScale, height: 600 * previewScale, position: "relative", overflow: "hidden" }}>
-                      <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
-                        <AdRenderer config={config} size={AD_SIZES[0]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[0].name, el)} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AdCard size={AD_SIZES[0]} selected={selectedAds.has(AD_SIZES[0].name)} onToggle={toggleAd} onExport={handleExportSingle} isExporting={isExporting} previewScale={previewScale} className="flex-shrink-0">
+                  <AdRenderer config={configMap[AD_SIZES[0].name]} size={AD_SIZES[0]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[0].name, el)} />
+                </AdCard>
 
-                <div className="space-y-1.5" style={{ width: 300 * previewScale }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="text-[11px] font-semibold text-foreground">Medium Rectangle</h3>
-                      <Badge variant="outline" className="text-[9px] font-mono">300x250</Badge>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleExportSingle(AD_SIZES[3])} disabled={isExporting}><Download className="size-3" /> PNG</Button>
-                  </div>
-                  <div className="overflow-auto">
-                    <div style={{ width: 300 * previewScale, height: 250 * previewScale, position: "relative", overflow: "hidden" }}>
-                      <div style={{ transform: `scale(${previewScale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0 }}>
-                        <AdRenderer config={config} size={AD_SIZES[3]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[3].name, el)} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AdCard size={AD_SIZES[3]} selected={selectedAds.has(AD_SIZES[3].name)} onToggle={toggleAd} onExport={handleExportSingle} isExporting={isExporting} previewScale={previewScale}>
+                  <AdRenderer config={configMap[AD_SIZES[3].name]} size={AD_SIZES[3]} adRef={(el: HTMLDivElement | null) => setAdRef(AD_SIZES[3].name, el)} />
+                </AdCard>
               </div>
             </div>
           </main>
@@ -268,7 +297,7 @@ export default function AdCreatorPage() {
 
       {/* In-context preview modal */}
       {showPreview && (
-        <InContextPreview config={config} onClose={() => setShowPreview(false)} />
+        <InContextPreview config={formConfig} onClose={() => setShowPreview(false)} />
       )}
     </div>
   );
