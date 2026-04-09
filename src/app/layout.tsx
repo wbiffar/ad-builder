@@ -9,7 +9,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Ad Creator — Legacy.com",
+  title: "Ad Creator",
   description: "Create professional funeral home display ads across all standard sizes.",
 };
 

@@ -62,19 +62,24 @@ export function LogoImage({
   maxWidth,
   maxHeight,
   whiteContainer = false,
+  scale = 1,
 }: {
   src: string;
   maxWidth: number;
   maxHeight: number;
   whiteContainer?: boolean;
+  scale?: number;
 }) {
+  const scaledMaxW = maxWidth * scale;
+  const scaledMaxH = maxHeight * scale;
+
   const img = (
     <img
       src={src}
       alt="Logo"
       style={{
-        maxWidth: whiteContainer ? maxWidth - 16 : maxWidth,
-        maxHeight: whiteContainer ? maxHeight - 12 : maxHeight,
+        maxWidth: whiteContainer ? scaledMaxW - 16 : scaledMaxW,
+        maxHeight: whiteContainer ? scaledMaxH - 12 : scaledMaxH,
         objectFit: "contain",
         display: "block",
       }}
@@ -92,8 +97,8 @@ export function LogoImage({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          maxWidth,
-          maxHeight,
+          maxWidth: scaledMaxW,
+          maxHeight: scaledMaxH,
         }}
       >
         {img}

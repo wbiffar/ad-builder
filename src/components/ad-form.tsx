@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { BorderPanel, GradientPanel, LabsDesignPanel } from "@/components/design-elements/design-panel";
 
 type AdFormProps = {
@@ -168,6 +169,7 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
               : config.designElements.gradient,
           },
           logoSettings: {
+            ...config.logoSettings,
             whiteContainer: a.layout?.whiteLogoContainer ?? config.logoSettings.whiteContainer,
             position: a.layout?.logoPosition ?? config.logoSettings.position,
           },
@@ -307,6 +309,23 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
               <p className="text-[10px] text-muted-foreground mt-1">
                 Horizontal ads: Top = Left, Bottom = Right
               </p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Logo scale</Label>
+                <span className="text-xs text-muted-foreground">{Math.round((config.logoSettings.scale ?? 1) * 100)}%</span>
+              </div>
+              <Slider
+                min={50}
+                max={200}
+                step={5}
+                value={[Math.round((config.logoSettings.scale ?? 1) * 100)]}
+                onValueChange={(val) => {
+                  const v = Array.isArray(val) ? val[0] : val;
+                  update({ logoSettings: { ...config.logoSettings, scale: v / 100 } });
+                }}
+                className="mt-1"
+              />
             </div>
           </div>
         )}

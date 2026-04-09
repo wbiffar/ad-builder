@@ -364,7 +364,7 @@ export function InContextPreview({ config, onClose }: InContextPreviewProps) {
           }}
         >
           <div style={{ fontSize: 20, fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em" }}>
-            Legacy
+            Preview
           </div>
           <div
             style={{

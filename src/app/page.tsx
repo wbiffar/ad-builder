@@ -96,7 +96,7 @@ export default function AdCreatorPage() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-bold text-foreground tracking-tight">Ad Creator</h1>
-            <Badge variant="secondary" className="text-[10px]">Legacy.com</Badge>
+            <Badge variant="secondary" className="text-[10px]">BETA</Badge>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">

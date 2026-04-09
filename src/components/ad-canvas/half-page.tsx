@@ -32,6 +32,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
+  const ls = logoSettings.scale ?? 1;
   const layout = getVerticalLayout(logoSettings.position);
   const accentLine = designElements.accentLine;
 
@@ -41,7 +42,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", display: "flex", flexDirection: "column", ...borderStyles }}>
         {/* Logo + tagline area */}
         <div style={{ background: bg, padding: "20px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} />}
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} scale={ls} />}
           <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} />
         </div>
         {/* Photo area */}
@@ -64,7 +65,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 16, ...borderStyles }}>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} />}
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} scale={ls} />}
           <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} />
           <PhotoImage
             src={additionalImageUrl}
@@ -87,7 +88,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.logoOrder }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} />}
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} />}
         </div>
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.contentOrder }}>
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
@@ -104,7 +105,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
     <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 32, order: layout.logoOrder }}>
-        {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} />}
+        {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} />}
       </div>
       <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 40, order: layout.contentOrder }}>
         <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} />

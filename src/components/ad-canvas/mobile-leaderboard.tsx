@@ -29,6 +29,7 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
+  const ls = logoSettings.scale ?? 1;
   const order = getHorizontalOrder(logoSettings.position);
   const isScript = templateStyle === "rich-traditional";
 
@@ -37,7 +38,7 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "space-between" }}>
         <div style={{ order: order.logoOrder, flexShrink: 0 }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={60} maxHeight={35} whiteContainer={wc} />}
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={60} maxHeight={35} whiteContainer={wc} scale={ls} />}
         </div>
         <div style={{
           color: textColor,

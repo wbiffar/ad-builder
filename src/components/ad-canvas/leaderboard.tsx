@@ -35,6 +35,7 @@ export function LeaderboardTemplate({
   const textColor = colors.text || getContrastColor(colors.background);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
+  const ls = logoSettings.scale ?? 1;
   const order = getHorizontalOrder(logoSettings.position);
   const accentLine = designElements.accentLine;
   const fp = getFocusPosition(photoFocusPoint);
@@ -45,7 +46,7 @@ export function LeaderboardTemplate({
   const tagFontSize = isLarge ? 17 : 15;
   const ctaFontSize = isLarge ? 13 : 12;
 
-  const logoEl = logoUrl ? <LogoImage src={logoUrl} maxWidth={logoMaxW} maxHeight={logoMaxH} whiteContainer={wc} /> : null;
+  const logoEl = logoUrl ? <LogoImage src={logoUrl} maxWidth={logoMaxW} maxHeight={logoMaxH} whiteContainer={wc} scale={ls} /> : null;
 
   // --- BUILDING SHOWCASE: photo on left, content on right ---
   if (templateStyle === "building-showcase" && additionalImageUrl) {
@@ -55,7 +56,7 @@ export function LeaderboardTemplate({
           <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp }} crossOrigin="anonymous" />
           {logoUrl && (
             <div style={{ position: "absolute", bottom: 6, left: 6, zIndex: 2 }}>
-              <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer />
+              <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer scale={ls} />
             </div>
           )}
         </div>

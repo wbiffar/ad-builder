@@ -95,6 +95,7 @@ export type LogoPosition = "top" | "center" | "bottom";
 export type LogoSettings = {
   whiteContainer: boolean;
   position: LogoPosition;
+  scale: number; // 0.5–2, default 1
 };
 
 export type PhotoFocusPoint = { x: number; y: number };
@@ -197,5 +198,6 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   logoSettings: {
     whiteContainer: false,
     position: "top",
+    scale: 1,
   },
 };
