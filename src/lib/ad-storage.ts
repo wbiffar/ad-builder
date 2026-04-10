@@ -8,7 +8,9 @@ export type SavedAdSet = {
   configMap: Record<string, AdConfig>;
 };
 
-const STORAGE_KEY = "legacy-ad-creator-saved-ads";
+const DB_NAME = "legacy-ad-creator";
+const DB_VERSION = 1;
+const STORE_NAME = "saved-ads";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -43,75 +45,96 @@ function migrateConfigMap(raw: Record<string, Partial<AdConfig>>): Record<string
   return result;
 }
 
-export function getSavedAdSets(): SavedAdSet[] {
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getSavedAdSets(): Promise<SavedAdSet[]> {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SavedAdSet[];
-    return parsed.map((set) => ({
-      ...set,
-      configMap: migrateConfigMap(set.configMap),
-    }));
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const sets = (request.result as SavedAdSet[]).map((set) => ({
+          ...set,
+          configMap: migrateConfigMap(set.configMap),
+        }));
+        sets.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        resolve(sets);
+      };
+      request.onerror = () => reject(request.error);
+    });
   } catch {
     return [];
   }
 }
 
-export function getAdSetById(id: string): SavedAdSet | undefined {
-  return getSavedAdSets().find((s) => s.id === id);
+export async function getAdSetById(id: string): Promise<SavedAdSet | undefined> {
+  const sets = await getSavedAdSets();
+  return sets.find((s) => s.id === id);
 }
 
-/** Strip large data URLs from configs to fit in localStorage. */
-function stripDataUrls(configMap: Record<string, AdConfig>): Record<string, AdConfig> {
-  const result: Record<string, AdConfig> = {};
-  for (const [key, config] of Object.entries(configMap)) {
-    result[key] = {
-      ...config,
-      logoUrl: config.logoUrl?.startsWith("data:") ? null : config.logoUrl,
-      additionalImageUrl: config.additionalImageUrl?.startsWith("data:") ? null : config.additionalImageUrl,
-    };
-  }
-  return result;
-}
-
-function safeSave(sets: SavedAdSet[]): boolean {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sets));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function saveAdSet(name: string, configMap: Record<string, AdConfig>): SavedAdSet {
-  const sets = getSavedAdSets();
+export async function saveAdSet(name: string, configMap: Record<string, AdConfig>): Promise<SavedAdSet> {
+  const db = await openDB();
   const now = new Date().toISOString();
   const newSet: SavedAdSet = {
     id: generateId(),
     name,
     createdAt: now,
     updatedAt: now,
-    configMap: stripDataUrls(configMap),
+    configMap,
   };
-  sets.push(newSet);
-  safeSave(sets);
-  return newSet;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.put(newSet);
+    request.onsuccess = () => resolve(newSet);
+    request.onerror = () => reject(request.error);
+  });
 }
 
-export function updateAdSet(id: string, configMap: Record<string, AdConfig>): void {
-  const sets = getSavedAdSets();
-  const idx = sets.findIndex((s) => s.id === id);
-  if (idx === -1) return;
-  sets[idx] = {
-    ...sets[idx],
-    configMap: stripDataUrls(configMap),
-    updatedAt: new Date().toISOString(),
-  };
-  safeSave(sets);
+export async function updateAdSet(id: string, configMap: Record<string, AdConfig>): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const existing = getReq.result as SavedAdSet | undefined;
+      if (!existing) { resolve(); return; }
+      const updated: SavedAdSet = {
+        ...existing,
+        configMap,
+        updatedAt: new Date().toISOString(),
+      };
+      const putReq = store.put(updated);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
 }
 
-export function deleteAdSet(id: string): void {
-  const sets = getSavedAdSets().filter((s) => s.id !== id);
-  safeSave(sets);
+export async function deleteAdSet(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
 }

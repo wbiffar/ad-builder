@@ -115,7 +115,7 @@ export default function AdCreatorPage() {
 
   // Load saved ad sets on mount
   useEffect(() => {
-    setSavedAdSets(getSavedAdSets());
+    getSavedAdSets().then(setSavedAdSets);
   }, []);
 
   const setAdRef = useCallback((name: string, el: HTMLDivElement | null) => {
@@ -152,34 +152,34 @@ export default function AdCreatorPage() {
     }
   }, [formConfig.funeralHomeName, selectedAds]);
 
-  const handleSaveAdSet = useCallback(() => {
+  const handleSaveAdSet = useCallback(async () => {
     const name = formConfig.funeralHomeName || "Untitled Ad Set";
-    const newSet = saveAdSet(name, configMap);
+    const newSet = await saveAdSet(name, configMap);
     setCurrentAdSetId(newSet.id);
-    setSavedAdSets(getSavedAdSets());
+    setSavedAdSets(await getSavedAdSets());
   }, [configMap, formConfig.funeralHomeName]);
 
-  const handleUpdateAdSet = useCallback(() => {
+  const handleUpdateAdSet = useCallback(async () => {
     if (!currentAdSetId) return;
-    updateAdSet(currentAdSetId, configMap);
-    setSavedAdSets(getSavedAdSets());
+    await updateAdSet(currentAdSetId, configMap);
+    setSavedAdSets(await getSavedAdSets());
   }, [configMap, currentAdSetId]);
 
   const handleLoadAdSet = useCallback(
     (id: string) => {
       const set = savedAdSets.find((s) => s.id === id);
       if (!set) return;
-      setConfigMap(set.configMap);
+      setConfigMap(JSON.parse(JSON.stringify(set.configMap)));
       setCurrentAdSetId(set.id);
     },
     [savedAdSets]
   );
 
   const handleDeleteAdSet = useCallback(
-    (id: string) => {
-      deleteAdSet(id);
+    async (id: string) => {
+      await deleteAdSet(id);
       if (currentAdSetId === id) setCurrentAdSetId(null);
-      setSavedAdSets(getSavedAdSets());
+      setSavedAdSets(await getSavedAdSets());
     },
     [currentAdSetId]
   );
@@ -203,15 +203,6 @@ export default function AdCreatorPage() {
               <option value={0.75}>Scale: 75%</option>
               <option value={1}>Scale: 100%</option>
             </select>
-            {currentAdSetId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleUpdateAdSet}
-              >
-                <Save className="w-3.5 h-3.5 mr-1.5" /> Update
-              </Button>
-            )}
             <Button
               variant="outline"
               size="sm"
@@ -260,16 +251,27 @@ export default function AdCreatorPage() {
                         <div className="min-w-0">
                           <div className="font-medium truncate">{set.name}</div>
                           <div className="text-[10px] text-muted-foreground">
-                            {new Date(set.updatedAt).toLocaleDateString()}
+                            {new Date(set.updatedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
                           </div>
                         </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteAdSet(set.id); }}
-                          className="text-muted-foreground hover:text-destructive flex-shrink-0 p-1"
-                          aria-label={`Delete ${set.name}`}
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          {currentAdSetId === set.id && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleUpdateAdSet(); }}
+                              className="text-muted-foreground hover:text-foreground p-1"
+                              aria-label={`Update ${set.name}`}
+                            >
+                              <Save className="size-3" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteAdSet(set.id); }}
+                            className="text-muted-foreground hover:text-destructive p-1"
+                            aria-label={`Delete ${set.name}`}
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
