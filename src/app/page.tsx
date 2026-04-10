@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { AdConfig, AdSize, AD_SIZES, DEFAULT_AD_CONFIG, SavedBrand } from "@/lib/types";
+import { AdConfig, AdSize, AD_SIZES, DEFAULT_AD_CONFIG } from "@/lib/types";
 import { exportAdAsPng, exportAllAdsAsZip } from "@/lib/export";
-import { getSavedBrands, saveBrand, deleteBrand } from "@/lib/brand-storage";
+import { SavedAdSet, getSavedAdSets, saveAdSet, updateAdSet, deleteAdSet } from "@/lib/ad-storage";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
@@ -11,15 +11,7 @@ import { InContextPreview } from "@/components/in-context-preview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Download, Eye, Check } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import { Download, Eye, Check, Save, Trash2 } from "lucide-react";
 
 function AdCard({
   size,
@@ -81,7 +73,8 @@ const INITIAL_CONFIG_MAP: ConfigMap = Object.fromEntries(
 
 export default function AdCreatorPage() {
   const [configMap, setConfigMap] = useState<ConfigMap>(INITIAL_CONFIG_MAP);
-  const [savedBrands, setSavedBrands] = useState<SavedBrand[]>([]);
+  const [savedAdSets, setSavedAdSets] = useState<SavedAdSet[]>([]);
+  const [currentAdSetId, setCurrentAdSetId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
   const [showPreview, setShowPreview] = useState(false);
@@ -120,9 +113,9 @@ export default function AdCreatorPage() {
     [selectedAds]
   );
 
-  // Load saved brands on mount
+  // Load saved ad sets on mount
   useEffect(() => {
-    setSavedBrands(getSavedBrands());
+    setSavedAdSets(getSavedAdSets());
   }, []);
 
   const setAdRef = useCallback((name: string, el: HTMLDivElement | null) => {
@@ -159,28 +152,36 @@ export default function AdCreatorPage() {
     }
   }, [formConfig.funeralHomeName, selectedAds]);
 
-  const handleSaveBrand = useCallback(() => {
-    if (!formConfig.funeralHomeName) return;
-    saveBrand({
-      name: formConfig.funeralHomeName,
-      logoUrl: formConfig.logoUrl,
-      colors: formConfig.colors,
-    });
-    setSavedBrands(getSavedBrands());
-  }, [formConfig]);
+  const handleSaveAdSet = useCallback(() => {
+    const name = formConfig.funeralHomeName || "Untitled Ad Set";
+    const newSet = saveAdSet(name, configMap);
+    setCurrentAdSetId(newSet.id);
+    setSavedAdSets(getSavedAdSets());
+  }, [configMap, formConfig.funeralHomeName]);
 
-  const handleLoadBrand = useCallback(
-    (brandId: string) => {
-      const brand = savedBrands.find((b) => b.id === brandId);
-      if (!brand) return;
-      handleConfigChange({
-        ...formConfig,
-        funeralHomeName: brand.name,
-        logoUrl: brand.logoUrl,
-        colors: brand.colors,
-      });
+  const handleUpdateAdSet = useCallback(() => {
+    if (!currentAdSetId) return;
+    updateAdSet(currentAdSetId, configMap);
+    setSavedAdSets(getSavedAdSets());
+  }, [configMap, currentAdSetId]);
+
+  const handleLoadAdSet = useCallback(
+    (id: string) => {
+      const set = savedAdSets.find((s) => s.id === id);
+      if (!set) return;
+      setConfigMap(set.configMap);
+      setCurrentAdSetId(set.id);
     },
-    [savedBrands, formConfig, handleConfigChange]
+    [savedAdSets]
+  );
+
+  const handleDeleteAdSet = useCallback(
+    (id: string) => {
+      deleteAdSet(id);
+      if (currentAdSetId === id) setCurrentAdSetId(null);
+      setSavedAdSets(getSavedAdSets());
+    },
+    [currentAdSetId]
   );
 
   return (
@@ -193,22 +194,31 @@ export default function AdCreatorPage() {
             <Badge variant="secondary" className="text-[10px]">BETA</Badge>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">Scale:</span>
-              {[0.5, 0.75, 1].map((scale) => (
-                <button
-                  key={scale}
-                  className={`text-xs px-2 py-0.5 rounded transition-colors ${
-                    previewScale === scale
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => setPreviewScale(scale)}
-                >
-                  {Math.round(scale * 100)}%
-                </button>
-              ))}
-            </div>
+            <select
+              value={previewScale}
+              onChange={(e) => setPreviewScale(Number(e.target.value))}
+              className="text-xs h-8 px-2 rounded-md border border-border bg-white text-foreground cursor-pointer"
+            >
+              <option value={0.5}>Scale: 50%</option>
+              <option value={0.75}>Scale: 75%</option>
+              <option value={1}>Scale: 100%</option>
+            </select>
+            {currentAdSetId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUpdateAdSet}
+              >
+                <Save className="w-3.5 h-3.5 mr-1.5" /> Update
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveAdSet}
+            >
+              <Save className="w-3.5 h-3.5 mr-1.5" /> Save New
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -227,38 +237,47 @@ export default function AdCreatorPage() {
         </div>
       </header>
 
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
-        <div className="flex gap-6">
+      <div className="max-w-[1600px] mx-auto pr-4 sm:pr-6 py-4 pl-[calc(320px+16px+24px)]">
+        <div>
           {/* Left sidebar — Form */}
-          <aside className="w-80 flex-shrink-0 max-h-[calc(100vh-5rem)] overflow-y-auto sticky top-20 pb-8 bg-card rounded-xl ring-1 ring-border/50 p-5 space-y-6 shadow-sm">
-            {/* Saved Brands */}
-            {savedBrands.length > 0 && (
-              <Card className="p-4">
+          <aside className="w-80 fixed top-[calc(3.5rem+16px)] left-4 bottom-4 overflow-y-auto bg-card rounded-xl ring-1 ring-border/50 p-4 shadow-sm z-40 space-y-4">
+            {/* Saved Ad Sets */}
+            {savedAdSets.length > 0 && (
+              <Card size="sm" className="p-3">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Load Saved Brand</label>
-                  <Select onValueChange={(v: string | null) => { if (v) handleLoadBrand(v); }}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Select a brand..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {savedBrands.map((brand) => (
-                        <SelectItem key={brand.id} value={brand.id}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full border"
-                              style={{ backgroundColor: brand.colors.primary }}
-                            />
-                            {brand.name}
+                  <label className="text-xs font-semibold text-muted-foreground">Saved Ads</label>
+                  <div className="space-y-1.5">
+                    {savedAdSets.map((set) => (
+                      <div
+                        key={set.id}
+                        className={`flex items-center justify-between gap-2 p-2 rounded-md text-xs transition-colors cursor-pointer ${
+                          currentAdSetId === set.id
+                            ? "bg-primary/10 ring-1 ring-primary/30"
+                            : "hover:bg-muted"
+                        }`}
+                        onClick={() => handleLoadAdSet(set.id)}
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{set.name}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {new Date(set.updatedAt).toLocaleDateString()}
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteAdSet(set.id); }}
+                          className="text-muted-foreground hover:text-destructive flex-shrink-0 p-1"
+                          aria-label={`Delete ${set.name}`}
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </Card>
             )}
 
-            <AdForm config={formConfig} onChange={handleConfigChange} onSaveBrand={handleSaveBrand} />
+            <AdForm config={formConfig} onChange={handleConfigChange} />
           </aside>
 
           {/* Main content — Preview */}

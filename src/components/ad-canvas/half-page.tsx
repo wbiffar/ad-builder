@@ -7,8 +7,10 @@ import {
   LogoImage,
   TaglineText,
   PhotoImage,
+  DescriptionText,
   AccentLineElement,
   getFocusPosition,
+  getTaglineStyleProps,
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
@@ -18,12 +20,10 @@ import { getContrastColor } from "@/lib/color-utils";
 const WIDTH = 300;
 const HEIGHT = 600;
 
-function getVerticalLayout(position: string) {
-  switch (position) {
-    case "top": return { justify: "flex-start" as const, logoOrder: 0, contentOrder: 1 };
-    case "bottom": return { justify: "flex-end" as const, logoOrder: 2, contentOrder: 0 };
-    default: return { justify: "center" as const, logoOrder: 0, contentOrder: 1 };
-  }
+function getAlignSelf(alignment?: string) {
+  if (alignment === "left") return "flex-start" as const;
+  if (alignment === "right") return "flex-end" as const;
+  return "center" as const;
 }
 
 export function HalfPage({ config, adRef }: AdTemplateProps) {
@@ -33,26 +33,34 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const ls = logoSettings.scale ?? 1;
-  const layout = getVerticalLayout(logoSettings.position);
+  const placement = logoSettings.placement ?? "top";
+  const logoAlign = getAlignSelf(logoSettings.alignment);
   const accentLine = designElements.accentLine;
+  const ts = getTaglineStyleProps(config.taglineStyle, config.taglineFont);
+
+  const logoEl = logoUrl ? (
+    <div style={{ alignSelf: logoAlign }}>
+      <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} />
+    </div>
+  ) : null;
 
   // --- BUILDING SHOWCASE: large photo hero with content below ---
   if (templateStyle === "building-showcase" && additionalImageUrl) {
     return (
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", display: "flex", flexDirection: "column", ...borderStyles }}>
-        {/* Logo + tagline area */}
         <div style={{ background: bg, padding: "20px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} scale={ls} />}
-          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} />
+          {placement === "top" && logoEl}
+          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} {...ts} />
+          {placement === "middle" && logoEl}
+          <DescriptionText text={config.description} color={textColor} fontSize={14} maxWidth={230} />
         </div>
-        {/* Photo area */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           <PhotoImage src={additionalImageUrl} treatment={photoTreatment === "fade" ? "fade" : "rectangular"} width="100%" height="100%" fadeColor={colors.background} focusPoint={photoFocusPoint} />
         </div>
-        {/* CTA area */}
         <div style={{ background: bg, padding: "16px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
+          {placement === "bottom" && logoEl}
         </div>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       </div>
@@ -65,8 +73,10 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 16, ...borderStyles }}>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={160} maxHeight={70} whiteContainer={wc} scale={ls} />}
-          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} />
+          {placement === "top" && logoEl}
+          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} {...ts} />
+          {placement === "middle" && logoEl}
+          <DescriptionText text={config.description} color={textColor} fontSize={14} maxWidth={230} />
           <PhotoImage
             src={additionalImageUrl}
             treatment={photoTreatment}
@@ -77,6 +87,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
           />
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
+          {placement === "bottom" && logoEl}
         </div>
       </div>
     );
@@ -85,16 +96,17 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   // --- RICH & TRADITIONAL: dark bg, script tagline, accent line, elegant spacing ---
   if (templateStyle === "rich-traditional") {
     return (
-      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
+      <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
-        <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.logoOrder }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} />}
-        </div>
-        <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28, order: layout.contentOrder }}>
+        <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28 }}>
+          {placement === "top" && logoEl}
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
-          <TaglineText text={tagline} color={textColor} fontSize={26} isScript maxWidth={240} lineHeight={1.4} />
+          <TaglineText text={tagline} color={textColor} fontSize={26} isScript maxWidth={240} lineHeight={1.4} {...ts} />
+          {placement === "middle" && logoEl}
+          <DescriptionText text={config.description} color={textColor} fontSize={15} maxWidth={230} />
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={16} padding="14px 36px" />
+          {placement === "bottom" && logoEl}
         </div>
       </div>
     );
@@ -102,14 +114,15 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
 
   // --- CLEAN & MINIMAL (default): clean vertical stack ---
   return (
-    <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: layout.justify, padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
+    <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
-      <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 32, order: layout.logoOrder }}>
-        {logoUrl && <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} />}
-      </div>
-      <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 40, order: layout.contentOrder }}>
-        <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} />
+      <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
+        {placement === "top" && logoEl}
+        <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} {...ts} />
+        {placement === "middle" && logoEl}
+        <DescriptionText text={config.description} color={textColor} fontSize={15} maxWidth={230} />
         <CtaButton text={ctaText} bgColor={colors.accent} fontSize={16} padding="14px 36px" />
+        {placement === "bottom" && logoEl}
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useState, useRef } from "react";
-import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, LogoPosition } from "@/lib/types";
+import React, { useCallback, useState, useRef, useEffect } from "react";
+import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, LogoPlacement, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
+import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
 import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
 import { fileToDataUrl } from "@/lib/file-utils";
 import { Input } from "@/components/ui/input";
@@ -12,18 +13,22 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
+import { RangeSlider } from "@/components/ui/range-slider";
 import { BorderPanel, GradientPanel, LabsDesignPanel } from "@/components/design-elements/design-panel";
 
 type AdFormProps = {
   config: AdConfig;
   onChange: (config: AdConfig) => void;
-  onSaveBrand?: () => void;
 };
 
-export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps) {
+export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   // Ensure photoFocusPoint exists (handles stale state from before this field was added)
-  const config = { ...rawConfig, photoFocusPoint: rawConfig.photoFocusPoint ?? { x: 50, y: 50 } };
+  const config = {
+    ...rawConfig,
+    photoFocusPoint: rawConfig.photoFocusPoint ?? { x: 50, y: 50 },
+    taglineStyle: rawConfig.taglineStyle ?? DEFAULT_TAGLINE_STYLE,
+    taglineFont: rawConfig.taglineFont ?? "DM Sans",
+  };
 
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
@@ -35,6 +40,11 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
   const [analysisDescription, setAnalysisDescription] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Load selected Google Font
+  useEffect(() => {
+    if (config.taglineFont) loadGoogleFont(config.taglineFont);
+  }, [config.taglineFont]);
   const inspirationInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,7 +181,7 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
           logoSettings: {
             ...config.logoSettings,
             whiteContainer: a.layout?.whiteLogoContainer ?? config.logoSettings.whiteContainer,
-            position: a.layout?.logoPosition ?? config.logoSettings.position,
+            placement: a.layout?.logoPlacement ?? config.logoSettings.placement,
           },
           variant: a.layout?.variant ?? config.variant,
           templateStyle: a.layout?.templateStyle ?? config.templateStyle,
@@ -211,256 +221,344 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
   const [labsOpen, setLabsOpen] = useState(false);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Funeral Home Name */}
-      <div className="space-y-2">
-        <Label htmlFor="name" className="text-sm font-semibold">Funeral Home Name</Label>
-        <Input
-          id="name"
-          value={config.funeralHomeName}
-          onChange={(e) => update({ funeralHomeName: e.target.value })}
-          placeholder="e.g., Riverside Memorial"
-        />
-        {onSaveBrand && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-2"
-            onClick={onSaveBrand}
-            disabled={!config.funeralHomeName}
-          >
-            Save Brand
-          </Button>
-        )}
-      </div>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Funeral Home Name</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Input
+            id="name"
+            value={config.funeralHomeName}
+            onChange={(e) => update({ funeralHomeName: e.target.value })}
+            placeholder="e.g., Riverside Memorial"
+          />
+        </CardContent>
+      </Card>
 
       {/* Logo Upload — with drag-and-drop */}
-      <div className="space-y-2">
-        <Label className="text-sm font-semibold">Logo</Label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
-            logoDragActive
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50"
-          }`}
-          onDragOver={handleDragOver}
-          onDragEnter={(e) => { e.preventDefault(); setLogoDragActive(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setLogoDragActive(false); }}
-          onDrop={handleLogoDrop}
-          onClick={() => !config.logoUrl && logoInputRef.current?.click()}
-        >
-          {config.logoUrl ? (
-            <div className="space-y-3">
-              <img
-                src={config.logoUrl}
-                alt="Logo preview"
-                className="max-h-20 mx-auto object-contain"
-              />
-              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ logoUrl: null }); }}>
-                Remove
-              </Button>
-            </div>
-          ) : (
-            <div>
-              <div className="text-muted-foreground text-sm">
-                {logoDragActive ? "Drop logo here" : "Drop logo here or click to upload"}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Logo</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+              logoDragActive
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/50"
+            }`}
+            onDragOver={handleDragOver}
+            onDragEnter={(e) => { e.preventDefault(); setLogoDragActive(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setLogoDragActive(false); }}
+            onDrop={handleLogoDrop}
+            onClick={() => !config.logoUrl && logoInputRef.current?.click()}
+          >
+            {config.logoUrl ? (
+              <div className="space-y-3">
+                <img
+                  src={config.logoUrl}
+                  alt="Logo preview"
+                  className="max-h-20 mx-auto object-contain"
+                />
+                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ logoUrl: null }); }}>
+                  Remove
+                </Button>
               </div>
-              <div className="text-muted-foreground text-xs mt-1">PNG, JPG, or SVG</div>
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/svg+xml"
-                className="hidden"
-                onChange={handleLogoUpload}
-              />
+            ) : (
+              <div>
+                <div className="text-muted-foreground text-sm">
+                  {logoDragActive ? "Drop logo here" : "Drop logo here or click to upload"}
+                </div>
+                <div className="text-muted-foreground text-xs mt-1">PNG, JPG, or SVG</div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+              </div>
+            )}
+          </div>
+          {isExtractingColors && (
+            <p className="text-xs text-muted-foreground">Extracting brand colors...</p>
+          )}
+
+          {/* Logo Settings — shown when a logo is uploaded */}
+          {config.logoUrl && (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">White logo container</Label>
+                <Switch
+                  checked={config.logoSettings.whiteContainer}
+                  onCheckedChange={(checked) =>
+                    update({ logoSettings: { ...config.logoSettings, whiteContainer: checked } })
+                  }
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Logo placement</Label>
+                <select
+                  value={config.logoSettings.placement ?? "top"}
+                  onChange={(e) => update({ logoSettings: { ...config.logoSettings, placement: e.target.value as LogoPlacement } })}
+                  className="w-full h-8 rounded-md border border-border bg-white px-2 text-xs mt-1"
+                >
+                  <option value="top">Above tagline</option>
+                  <option value="middle">Between tagline &amp; CTA</option>
+                  <option value="bottom">Below CTA</option>
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Horizontal ads: controls left/right side
+                </p>
+              </div>
+                <div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Logo scale</Label>
+                  <span className="text-xs text-muted-foreground">{Math.round((config.logoSettings.scale ?? 1) * 100)}%</span>
+                </div>
+                <RangeSlider
+                  min={50}
+                  max={200}
+                  step={5}
+                  value={Math.round((config.logoSettings.scale ?? 1) * 100)}
+                  onChange={(v) => update({ logoSettings: { ...config.logoSettings, scale: v / 100 } })}
+                  className="mt-1"
+                />
+              </div>
             </div>
           )}
-        </div>
-        {isExtractingColors && (
-          <p className="text-xs text-muted-foreground">Extracting brand colors...</p>
-        )}
-
-        {/* Logo Settings — shown when a logo is uploaded */}
-        {config.logoUrl && (
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">White logo container</Label>
-              <Switch
-                checked={config.logoSettings.whiteContainer}
-                onCheckedChange={(checked) =>
-                  update({ logoSettings: { ...config.logoSettings, whiteContainer: checked } })
-                }
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Logo position</Label>
-              <Tabs
-                value={config.logoSettings.position}
-                onValueChange={(v) =>
-                  update({ logoSettings: { ...config.logoSettings, position: v as LogoPosition } })
-                }
-              >
-                <TabsList className="w-full mt-1">
-                  <TabsTrigger value="top" className="flex-1 text-xs">Top</TabsTrigger>
-                  <TabsTrigger value="center" className="flex-1 text-xs">Center</TabsTrigger>
-                  <TabsTrigger value="bottom" className="flex-1 text-xs">Bottom</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Horizontal ads: Top = Left, Bottom = Right
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">Logo scale</Label>
-                <span className="text-xs text-muted-foreground">{Math.round((config.logoSettings.scale ?? 1) * 100)}%</span>
-              </div>
-              <Slider
-                min={50}
-                max={200}
-                step={5}
-                value={[Math.round((config.logoSettings.scale ?? 1) * 100)]}
-                onValueChange={(val) => {
-                  const v = Array.isArray(val) ? val[0] : val;
-                  update({ logoSettings: { ...config.logoSettings, scale: v / 100 } });
-                }}
-                className="mt-1"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Tagline */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="tagline" className="text-sm font-semibold">Tagline</Label>
-          <span className="text-xs text-muted-foreground">{config.tagline.length}/60</span>
-        </div>
-        <Textarea
-          id="tagline"
-          value={config.tagline}
-          onChange={(e) => {
-            if (e.target.value.length <= 60) update({ tagline: e.target.value });
-          }}
-          placeholder="Compassionate care in your time of need"
-          rows={2}
-        />
-      </div>
+      <Card size="sm">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-sm font-semibold">Tagline</CardTitle>
+            <span className="text-xs text-muted-foreground">{config.tagline.length}/60</span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Textarea
+            id="tagline"
+            value={config.tagline}
+            onChange={(e) => {
+              if (e.target.value.length <= 60) update({ tagline: e.target.value });
+            }}
+            placeholder="Compassionate care in your time of need"
+            rows={2}
+          />
+          {/* Tagline style controls */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                update({
+                  taglineStyle: {
+                    ...config.taglineStyle,
+                    fontWeight: config.taglineStyle.fontWeight === 700 ? 400 : 700,
+                  },
+                })
+              }
+              className={`size-7 rounded border text-xs font-bold flex items-center justify-center transition-colors ${
+                config.taglineStyle.fontWeight === 700
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-border hover:border-foreground"
+              }`}
+              aria-label="Toggle bold"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                update({
+                  taglineStyle: {
+                    ...config.taglineStyle,
+                    fontStyle: config.taglineStyle.fontStyle === "italic" ? "normal" : "italic",
+                  },
+                })
+              }
+              className={`size-7 rounded border text-xs italic flex items-center justify-center transition-colors ${
+                config.taglineStyle.fontStyle === "italic"
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-border hover:border-foreground"
+              }`}
+              aria-label="Toggle italic"
+            >
+              I
+            </button>
+            <div className="flex-1 flex items-center gap-2">
+              <RangeSlider
+                min={70}
+                max={150}
+                step={5}
+                value={Math.round(config.taglineStyle.fontSizeScale * 100)}
+                onChange={(v) => update({ taglineStyle: { ...config.taglineStyle, fontSizeScale: v / 100 } })}
+              />
+              <span className="text-[10px] text-muted-foreground w-8 text-right">{Math.round(config.taglineStyle.fontSizeScale * 100)}%</span>
+            </div>
+          </div>
+          {/* Font selector */}
+          <select
+            value={config.taglineFont}
+            onChange={(e) => update({ taglineFont: e.target.value })}
+            className="w-full h-8 rounded-md border border-border bg-white px-2 text-xs"
+          >
+            {FONT_OPTIONS.map((f) => (
+              <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </CardContent>
+      </Card>
+
+      {/* Description */}
+      <Card size="sm">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-sm font-semibold">Description</CardTitle>
+            <span className="text-xs text-muted-foreground">{(config.description ?? "").length}/60</span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Textarea
+            id="description"
+            value={config.description ?? ""}
+            onChange={(e) => {
+              if (e.target.value.length <= 60) update({ description: e.target.value });
+            }}
+            placeholder="A brief description or subtitle"
+            rows={2}
+          />
+          <p className="text-[10px] text-muted-foreground">Not shown on Mobile Leaderboard</p>
+        </CardContent>
+      </Card>
 
       {/* CTA Text */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="cta" className="text-sm font-semibold">Call to Action</Label>
-          <span className="text-xs text-muted-foreground">{config.ctaText.length}/25</span>
-        </div>
-        <Input
-          id="cta"
-          value={config.ctaText}
-          onChange={(e) => {
-            if (e.target.value.length <= 25) update({ ctaText: e.target.value });
-          }}
-          placeholder="Learn More"
-        />
-      </div>
+      <Card size="sm">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-sm font-semibold">Call to Action</CardTitle>
+            <span className="text-xs text-muted-foreground">{config.ctaText.length}/25</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Input
+            id="cta"
+            value={config.ctaText}
+            onChange={(e) => {
+              if (e.target.value.length <= 25) update({ ctaText: e.target.value });
+            }}
+            placeholder="Learn More"
+          />
+        </CardContent>
+      </Card>
 
       {/* Photo */}
-      <div className="space-y-2">
-        <Label className="text-sm font-semibold">
-          Photo
-          {(config.templateStyle === "building-showcase" || config.templateStyle === "people-first") && (
-            <span className="text-amber-600 text-[10px] font-normal ml-1.5">Required for this template</span>
-          )}
-        </Label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-            imageDragActive
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50"
-          }`}
-          onDragOver={handleDragOver}
-          onDragEnter={(e) => { e.preventDefault(); setImageDragActive(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setImageDragActive(false); }}
-          onDrop={handleAdditionalImageDrop}
-          onClick={() => !config.additionalImageUrl && imageInputRef.current?.click()}
-        >
-          {config.additionalImageUrl ? (
-            <div className="space-y-2">
-              {/* Focal point picker */}
-              <div
-                className="relative mx-auto cursor-crosshair"
-                style={{ maxHeight: 160 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                  const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                  update({ photoFocusPoint: { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) } });
-                }}
-              >
-                <img
-                  src={config.additionalImageUrl}
-                  alt="Additional image preview"
-                  className="max-h-40 mx-auto object-contain rounded"
-                  draggable={false}
-                />
-                {/* Focus point indicator */}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">
+            Photo
+            {(config.templateStyle === "building-showcase" || config.templateStyle === "people-first") && (
+              <span className="text-amber-600 text-[10px] font-normal ml-1.5">Required for this template</span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+              imageDragActive
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/50"
+            }`}
+            onDragOver={handleDragOver}
+            onDragEnter={(e) => { e.preventDefault(); setImageDragActive(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setImageDragActive(false); }}
+            onDrop={handleAdditionalImageDrop}
+            onClick={() => !config.additionalImageUrl && imageInputRef.current?.click()}
+          >
+            {config.additionalImageUrl ? (
+              <div className="space-y-2">
+                {/* Focal point picker */}
                 <div
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: `${config.photoFocusPoint.x}%`,
-                    top: `${config.photoFocusPoint.y}%`,
-                    transform: "translate(-50%, -50%)",
+                  className="relative mx-auto cursor-crosshair"
+                  style={{ maxHeight: 160 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                    update({ photoFocusPoint: { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) } });
                   }}
                 >
-                  <div className="w-5 h-5 rounded-full border-2 border-white shadow-md" style={{ background: "rgba(59, 130, 246, 0.5)" }}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <img
+                    src={config.additionalImageUrl}
+                    alt="Additional image preview"
+                    className="max-h-40 mx-auto object-contain rounded"
+                    draggable={false}
+                  />
+                  {/* Focus point indicator */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: `${config.photoFocusPoint.x}%`,
+                      top: `${config.photoFocusPoint.y}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  >
+                    <div className="w-5 h-5 rounded-full border-2 border-white shadow-md" style={{ background: "rgba(59, 130, 246, 0.5)" }}>
+                      <div className="w-1.5 h-1.5 rounded-full bg-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    </div>
                   </div>
                 </div>
+                <p className="text-[10px] text-muted-foreground text-center">Click to set focus point</p>
+                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ additionalImageUrl: null, photoFocusPoint: { x: 50, y: 50 } }); }}>
+                  Remove
+                </Button>
               </div>
-              <p className="text-[10px] text-muted-foreground text-center">Click to set focus point</p>
-              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ additionalImageUrl: null, photoFocusPoint: { x: 50, y: 50 } }); }}>
-                Remove
-              </Button>
-            </div>
-          ) : (
-            <div>
-              <div className="text-muted-foreground text-xs">
-                {imageDragActive ? "Drop image here" : "Drop image here or click to upload"}
+            ) : (
+              <div>
+                <div className="text-muted-foreground text-xs">
+                  {imageDragActive ? "Drop image here" : "Drop image here or click to upload"}
+                </div>
+                <div className="text-muted-foreground text-[10px] mt-0.5">Building, staff, or scenic photo</div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={handleAdditionalImageUpload}
+                />
               </div>
-              <div className="text-muted-foreground text-[10px] mt-0.5">Building, staff, or scenic photo</div>
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/png,image/jpeg"
-                className="hidden"
-                onChange={handleAdditionalImageUpload}
-              />
+            )}
+          </div>
+
+          {/* Photo Treatment — shown when image uploaded */}
+          {config.additionalImageUrl && (
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs">Photo treatment</Label>
+              <Tabs
+                value={config.photoTreatment}
+                onValueChange={(v) => update({ photoTreatment: v as PhotoTreatment })}
+              >
+                <TabsList className="w-full">
+                  <TabsTrigger value="rectangular" className="flex-1 text-xs">Rectangle</TabsTrigger>
+                  <TabsTrigger value="circular" className="flex-1 text-xs">Circular</TabsTrigger>
+                  <TabsTrigger value="fade" className="flex-1 text-xs">Fade</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           )}
-        </div>
-
-        {/* Photo Treatment — shown when image uploaded */}
-        {config.additionalImageUrl && (
-          <div className="space-y-1.5 pt-1">
-            <Label className="text-xs">Photo treatment</Label>
-            <Tabs
-              value={config.photoTreatment}
-              onValueChange={(v) => update({ photoTreatment: v as PhotoTreatment })}
-            >
-              <TabsList className="w-full">
-                <TabsTrigger value="rectangular" className="flex-1 text-xs">Rectangle</TabsTrigger>
-                <TabsTrigger value="circular" className="flex-1 text-xs">Circular</TabsTrigger>
-                <TabsTrigger value="fade" className="flex-1 text-xs">Fade</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Brand Colors */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card size="sm">
+        <CardHeader>
           <CardTitle className="text-sm font-semibold">Brand Colors</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -514,8 +612,8 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
       </Card>
 
       {/* Template Style */}
-      <Card>
-        <CardHeader className="pb-2">
+      <Card size="sm">
+        <CardHeader>
           <CardTitle className="text-sm font-semibold">Template Style</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -557,8 +655,8 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
       />
 
       {/* Accent Line */}
-      <Card>
-        <CardHeader className="pb-2">
+      <Card size="sm">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Accent Line</CardTitle>
             <Switch
@@ -662,8 +760,8 @@ export function AdForm({ config: rawConfig, onChange, onSaveBrand }: AdFormProps
         {labsOpen && (
           <div className="space-y-4 pl-1">
             {/* Inspiration Image */}
-            <Card>
-              <CardHeader className="pb-2">
+            <Card size="sm">
+              <CardHeader>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   Inspiration Image
                   <Badge variant="outline" className="text-[10px] font-normal">AI-powered</Badge>

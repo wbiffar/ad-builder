@@ -1,13 +1,25 @@
 "use client";
 
 import React from "react";
-import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine } from "@/lib/types";
+import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine, TaglineStyle, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
+import { getFontFallback } from "@/lib/fonts";
 import { getContrastColor } from "@/lib/color-utils";
 import { getIconById, getIllustrationById } from "@/lib/design-assets";
 
 /** Returns a CSS object-position value from a focus point. */
 export function getFocusPosition(fp?: PhotoFocusPoint): string {
   return fp ? `${fp.x}% ${fp.y}%` : "center";
+}
+
+/** Returns TaglineText style override props from a TaglineStyle config + font. */
+export function getTaglineStyleProps(ts?: TaglineStyle, taglineFont?: string) {
+  const s = ts ?? DEFAULT_TAGLINE_STYLE;
+  return {
+    fontWeightOverride: s.fontWeight,
+    fontStyleOverride: s.fontStyle,
+    fontSizeScale: s.fontSizeScale,
+    fontFamily: taglineFont ? getFontFallback(taglineFont) : undefined,
+  };
 }
 
 export type AdTemplateProps = {
@@ -375,6 +387,10 @@ export function TaglineText({
   maxWidth,
   lineHeight = 1.3,
   style,
+  fontWeightOverride,
+  fontStyleOverride,
+  fontSizeScale,
+  fontFamily,
 }: {
   text: string;
   color: string;
@@ -383,20 +399,66 @@ export function TaglineText({
   maxWidth?: number;
   lineHeight?: number;
   style?: React.CSSProperties;
+  fontWeightOverride?: number;
+  fontStyleOverride?: "normal" | "italic";
+  fontSizeScale?: number;
+  fontFamily?: string;
 }) {
+  const defaultWeight = isScript ? 400 : 600;
+  const defaultStyle = isScript ? "italic" : "normal";
+  const defaultFamily = isScript
+    ? "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif"
+    : "'Inter', 'DM Sans', sans-serif";
+
+  return (
+    <div
+      style={{
+        color,
+        fontSize: fontSize * (fontSizeScale ?? 1),
+        fontWeight: fontWeightOverride ?? defaultWeight,
+        fontFamily: fontFamily ?? defaultFamily,
+        fontStyle: fontStyleOverride ?? defaultStyle,
+        lineHeight,
+        maxWidth,
+        textAlign: "center",
+        ...style,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+/**
+ * Description text — lighter weight, smaller than tagline. Returns null if text is empty.
+ */
+export function DescriptionText({
+  text,
+  color,
+  fontSize,
+  maxWidth,
+  fontFamily,
+  style,
+}: {
+  text: string;
+  color: string;
+  fontSize: number;
+  maxWidth?: number;
+  fontFamily?: string;
+  style?: React.CSSProperties;
+}) {
+  if (!text) return null;
   return (
     <div
       style={{
         color,
         fontSize,
-        fontWeight: isScript ? 400 : 600,
-        fontFamily: isScript
-          ? "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif"
-          : "'Inter', 'DM Sans', sans-serif",
-        fontStyle: isScript ? "italic" : "normal",
-        lineHeight,
+        fontWeight: 400,
+        fontFamily: fontFamily ?? "'Inter', 'DM Sans', sans-serif",
+        lineHeight: 1.4,
         maxWidth,
         textAlign: "center",
+        opacity: 0.85,
         ...style,
       }}
     >

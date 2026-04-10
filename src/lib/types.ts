@@ -90,15 +90,31 @@ export type AccentLine = {
   style: "solid" | "dashed" | "double";
 };
 
-export type LogoPosition = "top" | "center" | "bottom";
+/** Where the logo sits in the element stack. */
+export type LogoPlacement = "top" | "middle" | "bottom";
+/** Horizontal alignment of the logo within its slot. */
+export type LogoAlignment = "left" | "center" | "right";
 
 export type LogoSettings = {
   whiteContainer: boolean;
-  position: LogoPosition;
+  placement: LogoPlacement;
+  alignment: LogoAlignment;
   scale: number; // 0.5–2, default 1
 };
 
 export type PhotoFocusPoint = { x: number; y: number };
+
+export type TaglineStyle = {
+  fontWeight: 400 | 600 | 700;
+  fontStyle: "normal" | "italic";
+  fontSizeScale: number; // 0.7–1.5, default 1
+};
+
+export const DEFAULT_TAGLINE_STYLE: TaglineStyle = {
+  fontWeight: 600,
+  fontStyle: "normal",
+  fontSizeScale: 1,
+};
 
 export type AdConfig = {
   funeralHomeName: string;
@@ -114,6 +130,9 @@ export type AdConfig = {
   photoFocusPoint: PhotoFocusPoint;
   designElements: DesignElements;
   logoSettings: LogoSettings;
+  taglineStyle: TaglineStyle;
+  taglineFont: string;
+  description: string;
 };
 
 export type SavedBrand = {
@@ -197,7 +216,11 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   designElements: DEFAULT_DESIGN_ELEMENTS,
   logoSettings: {
     whiteContainer: false,
-    position: "top",
+    placement: "top",
+    alignment: "center",
     scale: 1,
   },
+  taglineStyle: DEFAULT_TAGLINE_STYLE,
+  taglineFont: "DM Sans",
+  description: "",
 };

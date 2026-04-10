@@ -43,15 +43,15 @@ export function BorderPanel({
     onChange({ ...elements, border: { ...elements.border, ...partial } });
 
   return (
-    <Card>
-      <CardHeader className="pb-2 pt-3 px-4">
+    <Card size="sm">
+      <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-xs font-semibold">Border</CardTitle>
           <Switch checked={elements.border.enabled} onCheckedChange={(checked) => updateBorder({ enabled: checked })} />
         </div>
       </CardHeader>
       {elements.border.enabled && (
-        <CardContent className="px-4 pb-3 space-y-2">
+        <CardContent className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-[10px]">Style</Label>
@@ -97,15 +97,15 @@ export function GradientPanel({
     onChange({ ...elements, gradient: { ...elements.gradient, ...partial } });
 
   return (
-    <Card>
-      <CardHeader className="pb-2 pt-3 px-4">
+    <Card size="sm">
+      <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-xs font-semibold">Gradient</CardTitle>
           <Switch checked={elements.gradient.enabled} onCheckedChange={(checked) => updateGradient({ enabled: checked })} />
         </div>
       </CardHeader>
       {elements.gradient.enabled && (
-        <CardContent className="px-4 pb-3 space-y-2">
+        <CardContent className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-[10px]">Type</Label>
@@ -154,15 +154,15 @@ export function LabsDesignPanel({ elements, colors, onChange }: DesignPanelProps
   return (
     <div className="space-y-4">
       {/* Shape */}
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-4">
+      <Card size="sm">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xs font-semibold">Shape</CardTitle>
             <Switch checked={elements.shape.enabled} onCheckedChange={(checked) => updateShape({ enabled: checked })} />
           </div>
         </CardHeader>
         {elements.shape.enabled && (
-          <CardContent className="px-4 pb-3 space-y-2">
+          <CardContent className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-[10px]">Type</Label>
@@ -204,15 +204,15 @@ export function LabsDesignPanel({ elements, colors, onChange }: DesignPanelProps
       </Card>
 
       {/* Icon */}
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-4">
+      <Card size="sm">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xs font-semibold">Icon</CardTitle>
             <Switch checked={elements.icon.enabled} onCheckedChange={(checked) => updateIcon({ enabled: checked })} />
           </div>
         </CardHeader>
         {elements.icon.enabled && (
-          <CardContent className="px-4 pb-3 space-y-2">
+          <CardContent className="space-y-2">
             <div>
               <Label className="text-[10px]">Choose Icon</Label>
               <div className="grid grid-cols-5 gap-1.5 mt-1">
@@ -262,15 +262,15 @@ export function LabsDesignPanel({ elements, colors, onChange }: DesignPanelProps
       </Card>
 
       {/* Illustration */}
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-4">
+      <Card size="sm">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xs font-semibold">Illustration</CardTitle>
             <Switch checked={elements.illustration.enabled} onCheckedChange={(checked) => updateIllustration({ enabled: checked })} />
           </div>
         </CardHeader>
         {elements.illustration.enabled && (
-          <CardContent className="px-4 pb-3 space-y-2">
+          <CardContent className="space-y-2">
             <div>
               <Label className="text-[10px]">Choose Pattern</Label>
               <div className="grid grid-cols-3 gap-1.5 mt-1">
