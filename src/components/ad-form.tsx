@@ -337,7 +337,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-sm font-semibold">Tagline</CardTitle>
-            <span className="text-xs text-muted-foreground">{config.tagline.length}/60</span>
+            <span className="text-xs text-muted-foreground">{config.tagline.length}/70</span>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -345,7 +345,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
             id="tagline"
             value={config.tagline}
             onChange={(e) => {
-              if (e.target.value.length <= 60) update({ tagline: e.target.value });
+              if (e.target.value.length <= 70) update({ tagline: e.target.value });
             }}
             placeholder="Compassionate care in your time of need"
             rows={2}
@@ -421,7 +421,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-sm font-semibold">Description</CardTitle>
-            <span className="text-xs text-muted-foreground">{(config.description ?? "").length}/60</span>
+            <span className="text-xs text-muted-foreground">{(config.description ?? "").length}/70</span>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -429,7 +429,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
             id="description"
             value={config.description ?? ""}
             onChange={(e) => {
-              if (e.target.value.length <= 60) update({ description: e.target.value });
+              if (e.target.value.length <= 70) update({ description: e.target.value });
             }}
             placeholder="A brief description or subtitle"
             rows={2}
