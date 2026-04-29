@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.1 — April 29, 2026
+
+### Improvements
+
+- **Script Font Update** — Replaced Great Vibes with Courgette for a more readable, friendly script option
+- **Character Limits** — Increased Tagline and Description max length from 60 to 70 characters
+
 ## v1.3.0 — April 10, 2026
 
 ### New Features

@@ -15,7 +15,7 @@ export const FONT_OPTIONS: FontOption[] = [
   { name: "Lora", family: "Lora", category: "serif", weights: [400, 500, 600, 700], hasItalic: true },
   { name: "Merriweather", family: "Merriweather", category: "serif", weights: [400, 700], hasItalic: true },
   { name: "Roboto Slab", family: "Roboto Slab", category: "serif", weights: [400, 500, 600, 700] },
-  { name: "Great Vibes", family: "Great Vibes", category: "script", weights: [400] },
+  { name: "Courgette", family: "Courgette", category: "script", weights: [400] },
   { name: "Georgia", family: "Georgia", category: "serif", weights: [400, 700], isSystem: true },
 ];
 
