@@ -9,15 +9,16 @@ export type SavedAdSet = {
 };
 
 const DB_NAME = "legacy-ad-creator";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "saved-ads";
+export const SHARED_FOLDER_STORE = "shared-folder";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /** Fills in any missing fields from DEFAULT_AD_CONFIG (handles old saved data). */
-function migrateAdConfig(saved: Partial<AdConfig>): AdConfig {
+export function migrateAdConfig(saved: Partial<AdConfig>): AdConfig {
   return {
     ...DEFAULT_AD_CONFIG,
     ...saved,
@@ -45,13 +46,17 @@ function migrateConfigMap(raw: Record<string, Partial<AdConfig>>): Record<string
   return result;
 }
 
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+      // Out-of-line keys: the FileSystemDirectoryHandle is stored under a fixed key.
+      if (!db.objectStoreNames.contains(SHARED_FOLDER_STORE)) {
+        db.createObjectStore(SHARED_FOLDER_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -106,7 +111,7 @@ export async function saveAdSet(name: string, configMap: Record<string, AdConfig
   });
 }
 
-export async function updateAdSet(id: string, configMap: Record<string, AdConfig>): Promise<void> {
+export async function updateAdSet(id: string, configMap: Record<string, AdConfig>, name?: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -117,6 +122,7 @@ export async function updateAdSet(id: string, configMap: Record<string, AdConfig
       if (!existing) { resolve(); return; }
       const updated: SavedAdSet = {
         ...existing,
+        name: name ?? existing.name,
         configMap,
         updatedAt: new Date().toISOString(),
       };
