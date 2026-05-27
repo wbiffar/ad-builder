@@ -4,6 +4,19 @@ _Author: Wes Biffar · May 2026_
 
 ---
 
+## TL;DR
+
+The Ad Builder currently stores all data in the browser — nothing is shared, nothing persists beyond a single machine. Four approaches were evaluated to enable multi-user handoff:
+
+- **Approach A (Export/Import JSON):** Lowest effort (1–2 days / ~2–4 hours with Claude Code), but requires manually emailing or sharing a file. Good interim fix.
+- **Approach A1 (Shared Drive Folder):** Slightly more work (2–3 days / ~half a day with Claude Code), but eliminates the manual handoff entirely by writing to a shared Google Drive folder the whole team can browse. Stays within Legacy's Google Workspace infrastructure with no custom backend.
+- **Approach B (Cloud-Backed Shared Projects):** The most complete solution — shareable links, a team workspace, proper auth, and a foundation for future features. 2–3 weeks (clean slate) to 3–5 weeks (with migration) for a human engineer; roughly 1 week to 1–2 weeks with Claude Code.
+- **Approach C (Real-Time Co-Editing):** Overkill for the stated use case. Not recommended.
+
+**Recommendation:** Start with A1 — it directly solves the handoff problem, uses infrastructure already in place, and requires no backend work. If A1 proves insufficient over time, Approach B is the natural upgrade path. See Section 3 for what would drive that decision.
+
+---
+
 ## 1. Current Architecture & Constraints
 
 The Ad Builder is a **Next.js app with no backend persistence**. All ad data lives exclusively in the user's browser:
@@ -61,9 +74,55 @@ Three models were evaluated, in order of complexity.
 
 Almost entirely a frontend change — well-scoped and self-contained, which is where Claude Code performs best. It can read the existing codebase, identify the right insertion points in `page.tsx` and `ad-storage.ts`, and produce working code in a single session with light human review.
 
+**Security:**
+- No new attack surface — files are shared manually and only accessible to whoever receives them.
+- No authentication, no server, no credentials to protect.
+- Files contain base64-encoded images (logos, photos) — if emailed or shared carelessly, that content travels with them. Low risk for ad creative, but worth noting.
+- No audit trail within the app once a file is handed off and modified.
+
 ---
 
-### Approach B — Cloud-Backed Shared Projects with Shareable Links (Recommended)
+### Approach A1 — Shared Drive Folder (Google Drive) — Recommended
+
+**How it works:** Instead of saving ad sets only to IndexedDB, the app writes the JSON file to a configurable local folder path. If that folder is a shared Google Drive folder, the sync client (already running on company laptops) handles distributing it to everyone with access — no email, no manual import step. Any team member opens the app, browses the shared folder, and loads any in-progress project.
+
+**What needs to be built:**
+- A configurable "save location" setting in the app (a folder path the user sets once, e.g., `~/Google Drive/Ad Builder Projects/`).
+- On save, write the JSON file to that path in addition to (or instead of) IndexedDB.
+- A "Browse shared projects" view in the app that reads JSON files from the configured folder and lists them alongside locally saved work.
+
+**Pros:**
+- No custom backend or API — the app just reads and writes files.
+- Shared folder acts as a lightweight shared workspace; no explicit handoff required.
+- Google Drive provides version history (30 days by default, up to 180 days with Workspace) and access control for free.
+- Works offline — sync handles it in the background.
+- Much lower operational overhead than Approach B.
+
+**Cons:**
+- Requires every user to have the Google Drive for Desktop sync client installed and the shared folder configured — not zero setup, but manageable via IT.
+- No web URL — users must open the app and load the project manually.
+- Conflict resolution is basic: if two people save simultaneously, the sync client may create a conflicted copy. No merge logic.
+- File sizes can still be large due to base64-encoded images.
+
+**Effort:**
+
+| | Human engineer | With Claude Code |
+|---|---|---|
+| Total | ~2–3 days | ~half a day |
+
+Slightly more than basic export/import (Approach A) due to the configurable path setting and the folder-browsing view, but still entirely a frontend change with no infrastructure work.
+
+**Security:**
+- Access control is all-or-nothing at the folder level — anyone with folder access can see and edit every project. No per-project permissions within the app.
+- No authentication in the app itself; the only security layer is Google Drive folder membership.
+- Misconfiguration risk: if the shared folder is accidentally set to "anyone with the link," files become broadly accessible outside the team.
+- Files are accessible outside the app — can be opened, copied, or deleted directly from the file system without any app-level audit trail.
+- **One genuine positive:** Data stays within Legacy's Google Workspace environment, under existing IT governance, DLP policies, and compliance controls — better than standing up a new custom backend IT has to vet separately.
+- Overall risk is low given the data is ad creative (logos, taglines, colors) rather than sensitive PII or financial data.
+
+---
+
+### Approach B — Cloud-Backed Shared Projects with Shareable Links — Future Upgrade Path
 
 **How it works:** Ad sets are saved to a backend database instead of (or in addition to) IndexedDB. Each ad set gets a persistent ID that can be shared as a URL. Any user with the link can open and continue the work. Access can be scoped to "view only" or "can edit."
 
@@ -121,6 +180,14 @@ The clean-slate approach drops the image asset migration entirely — the tricki
 
 With Claude Code, the human role changes from writing code to steering the work: providing context, reviewing PRs (especially auth and data access logic), and handling infra setup. Security-sensitive code should always get careful human review regardless of who wrote it.
 
+**Security:**
+- Authentication means user identity is enforced — only authenticated users can access projects.
+- Per-project permission model (owner, editor, viewer) enables fine-grained access control not possible in A or A1.
+- Images stored in object storage (S3/Supabase) can have signed URLs with expiry, preventing unauthorized direct access.
+- API layer means all data access is logged and auditable.
+- New attack surface compared to A/A1: API endpoints, auth tokens, and the backend must be kept secure. Auth and data access logic warrants careful review regardless of who writes it.
+- Requires security review of the new infrastructure before going to production — standard for any new backend, but adds a step.
+
 ---
 
 ### Approach C — Real-Time Co-Editing (Highest effort, out of scope for now)
@@ -150,26 +217,38 @@ With Claude Code, the human role changes from writing code to steering the work:
 
 Real-time sync logic (CRDTs, WebSocket state management) is complex enough that even with Claude Code the calendar time stays high — the challenge is architectural decisions and testing correctness under concurrent edits, not raw code volume. Still not recommended for this use case.
 
+**Security:**
+- All the considerations of Approach B apply here.
+- Real-time sync adds additional attack surface: WebSocket connections must be authenticated and authorized, and live state updates must be validated server-side to prevent a malicious client from corrupting shared state.
+- Highest security complexity of all approaches — warrants the most thorough review.
+
 ---
 
 ## 3. Recommendation
 
-**Start with Approach B (Cloud-Backed Shared Projects).**
+**Start with Approach A1 (Shared Google Drive Folder).**
 
-The primary use case — person A starts, person B finishes — is a classic async handoff scenario. Real-time co-editing is not required. A shareable link model solves the problem cleanly, mirrors patterns users already know from tools like Figma and Notion, and sets the codebase up for future collaboration features without the complexity of real-time sync.
+A1 directly solves the primary use case — person A starts, person B finishes — without any backend infrastructure. It uses Google Workspace tooling the team already has, requires half a day of engineering work with Claude Code, and keeps operational overhead at zero.
 
-Approach A (Export/Import) is worth shipping _first_ as a fast interim solution (1–2 days of work) while Approach B is being planned and built. It unblocks the use case immediately at near-zero cost.
+Approach B remains the natural upgrade path if A1 proves insufficient, but it shouldn't be planned speculatively. Ship A1, use it, and let real usage patterns drive the decision to invest in a full backend.
 
-### Recommended phased plan
+### When to consider moving to Approach B
 
-**Phase 1 (interim):** Ship JSON export/import. Immediately unblocks the handoff use case with no infrastructure changes.
-- Human: ~1–2 days · With Claude Code: ~2–4 hours
+- The team needs to share work with external collaborators (contractors, vendors) who don't have access to the Google Drive.
+- Users need to access or share projects via a web URL without the Drive for Desktop client installed.
+- The folder-based access model becomes too coarse — e.g., needing per-project permissions or view-only access for stakeholders.
+- The team grows to a point where a shared folder becomes difficult to manage or search.
 
-**Phase 2:** Build cloud-backed shared projects with shareable links. Migrate data storage to a backend database, add auth (SSO preferred for an internal tool), and ship a "Share" button that generates an editable link.
+### Plan
+
+**Now:** Ship A1. Unblocks the handoff use case immediately.
+- Human: ~2–3 days · With Claude Code: ~half a day
+
+**If/when A1 proves insufficient:** Build Approach B — cloud-backed shared projects with shareable links, proper auth, and a team workspace view.
 - Human: ~3–5 weeks · With Claude Code: ~1–2 weeks _(with migration)_
 - Human: ~2–3 weeks · With Claude Code: ~1 week _(clean slate — no migration)_
 
-**Phase 3 (future, unscoped):** Consider version history, comments/annotations, and role-based access control once Phase 2 usage patterns are understood.
+**Future (unscoped):** Version history, comments/annotations, and role-based access control.
 
 ---
 
