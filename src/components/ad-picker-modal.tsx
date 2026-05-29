@@ -206,6 +206,59 @@ export function AdPickerModal({
   );
 }
 
+export type ConfirmDeleteDialogProps = {
+  name: string;
+  shared: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
+export function ConfirmDeleteDialog({ name, shared, onConfirm, onCancel }: ConfirmDeleteDialogProps) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    // Focus Cancel so the safe action is the default for both keyboard (Enter)
+    // and screen reader users — autoFocus on a button is unreliable in custom modals.
+    cancelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
+      <div
+        className="w-full max-w-sm bg-card rounded-xl shadow-xl ring-1 ring-border/50 p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Delete ad"
+      >
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold">Delete &ldquo;{name}&rdquo;?</h2>
+          <p className="text-xs text-muted-foreground">
+            {shared
+              ? "This ad lives in the shared folder. Deleting it will remove it for everyone on the team. This can't be undone."
+              : "This ad is saved on this device. Deleting it can't be undone."}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {/* Cancel is the default action — destructive confirmations should not
+              auto-confirm on Enter. */}
+          <Button ref={cancelRef} variant="ghost" size="sm" className="flex-1" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="destructive" size="sm" className="flex-1" onClick={onConfirm}>
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export type UnsavedChangesDialogProps = {
   onSave: () => void;
   onDiscard: () => void;
