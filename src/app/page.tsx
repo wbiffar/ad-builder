@@ -19,7 +19,7 @@ import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
 import { InContextPreview } from "@/components/in-context-preview";
-import { AdPickerModal, UnsavedChangesDialog } from "@/components/ad-picker-modal";
+import { AdPickerModal, UnsavedChangesDialog, ConfirmDeleteDialog } from "@/components/ad-picker-modal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -101,6 +101,7 @@ export default function AdCreatorPage() {
   const [baseline, setBaseline] = useState<string>(() => JSON.stringify(INITIAL_CONFIG_MAP));
   const [showPicker, setShowPicker] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string; shared: boolean } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
   const [showPreview, setShowPreview] = useState(false);
@@ -341,6 +342,24 @@ export default function AdCreatorPage() {
     runPendingAction();
   };
 
+  // Deletes route through a confirmation dialog. Shared-folder sets get a
+  // sterner message because removing the file affects everyone.
+  const requestDeleteAdSet = (id: string) => {
+    const shared = sharedAdSets.some((s) => s.id === id);
+    const set = shared
+      ? sharedAdSets.find((s) => s.id === id)
+      : savedAdSets.find((s) => s.id === id);
+    if (!set) return;
+    setPendingDelete({ id, name: set.name, shared });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
+    await handleDeleteAdSet(id);
+  };
+
   const handleDeleteAdSet = useCallback(
     async (id: string) => {
       await deleteAdSet(id);
@@ -533,7 +552,7 @@ export default function AdCreatorPage() {
           currentId={currentAdSetId}
           onSelect={requestLoadAdSet}
           onNew={requestNewAdSet}
-          onDelete={handleDeleteAdSet}
+          onDelete={requestDeleteAdSet}
           onClose={() => setShowPicker(false)}
         />
       )}
@@ -544,6 +563,16 @@ export default function AdCreatorPage() {
           onSave={handleConfirmSave}
           onDiscard={runPendingAction}
           onCancel={() => setPendingAction(null)}
+        />
+      )}
+
+      {/* Delete confirmation */}
+      {pendingDelete && (
+        <ConfirmDeleteDialog
+          name={pendingDelete.name}
+          shared={pendingDelete.shared}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setPendingDelete(null)}
         />
       )}
     </div>
