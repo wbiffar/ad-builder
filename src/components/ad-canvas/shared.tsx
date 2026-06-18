@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine, TaglineStyle, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
 import { getFontFallback } from "@/lib/fonts";
 import { getContrastColor } from "@/lib/color-utils";
@@ -18,6 +18,7 @@ export function getTaglineStyleProps(ts?: TaglineStyle, taglineFont?: string) {
     fontWeightOverride: s.fontWeight,
     fontStyleOverride: s.fontStyle,
     fontSizeScale: s.fontSizeScale,
+    paragraphScale: s.paragraphScale,
     fontFamily: taglineFont ? getFontFallback(taglineFont) : undefined,
   };
 }
@@ -377,7 +378,193 @@ export function PhotoImage({
 }
 
 /**
+ * Per-template copy-area budget for tagline auto-fit (DES-2209).
+ *
+ * `maxHeight` is the vertical space the tagline may occupy before it must
+ * scale down; `minFontSize` is the readability floor for that template. These
+ * are tuned for the dominant centered layouts — photo templates give the
+ * tagline a smaller band, but there a taller tagline shrinks the flexible
+ * photo area rather than overflowing the fixed frame.
+ */
+export type TaglineFit = { maxHeight: number; minFontSize: number };
+
+export const TAGLINE_FIT: Record<string, TaglineFit> = {
+  "half-page": { maxHeight: 240, minFontSize: 13 },
+  "medium-rectangle": { maxHeight: 104, minFontSize: 11 },
+  leaderboard: { maxHeight: 56, minFontSize: 10 },
+  "large-leaderboard": { maxHeight: 56, minFontSize: 10 },
+};
+
+/** Splits tagline copy into paragraphs on blank lines (a double line break). */
+const PARAGRAPH_SPLIT = /\n{2,}/;
+
+/**
+ * Renders text and shrinks its font size (down to `minFontSize`) until the
+ * content fits within `maxHeight`. The fit is found by an imperative binary
+ * search against the real DOM inside a layout effect — no per-step re-render —
+ * so the same logic drives the on-screen preview and the html-to-image export.
+ * When even the floor overflows, the copy is clamped so it can never spill past
+ * the fixed template bounds.
+ *
+ * A double line break starts a new paragraph; the gap between paragraphs is
+ * `lineHeight * paragraphScale` (in `em`, so it scales with the fitted font
+ * size). At `paragraphScale` 1 that matches a natural blank line — the max —
+ * and lower values tighten it.
+ */
+function FitText({
+  text,
+  color,
+  maxFontSize,
+  minFontSize,
+  maxHeight,
+  lineHeight,
+  paragraphScale,
+  fontWeight,
+  fontStyle,
+  fontFamily,
+  maxWidth,
+  style,
+}: {
+  text: string;
+  color: string;
+  maxFontSize: number;
+  minFontSize: number;
+  maxHeight: number;
+  lineHeight: number;
+  paragraphScale: number;
+  fontWeight: number;
+  fontStyle: "normal" | "italic";
+  fontFamily: string;
+  maxWidth?: number;
+  style?: React.CSSProperties;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fitted, setFitted] = useState<{ fontSize: number; clamped: boolean }>({
+    fontSize: maxFontSize,
+    clamped: false,
+  });
+  // Web fonts load asynchronously and have different metrics than the fallback,
+  // so re-measure once they're ready.
+  const [fontNonce, setFontNonce] = useState(0);
+
+  const paragraphs = useMemo(() => text.split(PARAGRAPH_SPLIT), [text]);
+  const multi = paragraphs.length > 1;
+  // em so the gap scales with font size during the imperative measurement below.
+  const paragraphGap = `${lineHeight * paragraphScale}em`;
+
+  useEffect(() => {
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (!fonts?.ready) return;
+    let active = true;
+    fonts.ready.then(() => {
+      if (active) setFontNonce((n) => n + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // Neutralize any committed clamp so scrollHeight reflects the full,
+    // unclamped content while we measure. Keep flex layout for multi-paragraph
+    // copy so the em paragraph gaps still apply.
+    const saved = {
+      fontSize: el.style.fontSize,
+      display: el.style.display,
+      clamp: el.style.webkitLineClamp,
+      overflow: el.style.overflow,
+      maxHeight: el.style.maxHeight,
+    };
+    el.style.display = multi ? "flex" : "block";
+    el.style.webkitLineClamp = "";
+    el.style.overflow = "visible";
+    el.style.maxHeight = "";
+
+    const fits = (fs: number) => {
+      el.style.fontSize = `${fs}px`;
+      return el.scrollHeight <= maxHeight + 0.5;
+    };
+
+    let best = minFontSize;
+    if (fits(maxFontSize)) {
+      best = maxFontSize;
+    } else {
+      let lo = minFontSize;
+      let hi = maxFontSize;
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid)) {
+          best = mid;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+    }
+    const clamped = !fits(minFontSize);
+
+    // Restore inline styles; React re-applies the style object on the
+    // synchronous re-render below (before paint), so there's no flash.
+    el.style.fontSize = saved.fontSize;
+    el.style.display = saved.display;
+    el.style.webkitLineClamp = saved.clamp;
+    el.style.overflow = saved.overflow;
+    el.style.maxHeight = saved.maxHeight;
+
+    setFitted({ fontSize: Math.round(best * 10) / 10, clamped });
+  }, [text, maxFontSize, minFontSize, maxHeight, lineHeight, paragraphScale, multi, fontWeight, fontStyle, fontFamily, maxWidth, fontNonce]);
+
+  const clampLines = Math.max(1, Math.floor(maxHeight / (minFontSize * lineHeight)));
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        color,
+        fontSize: fitted.fontSize,
+        fontWeight,
+        fontFamily,
+        fontStyle,
+        lineHeight,
+        maxWidth,
+        textAlign: "center",
+        overflowWrap: "break-word",
+        ...(multi
+          ? { display: "flex", flexDirection: "column", gap: paragraphGap }
+          : { whiteSpace: "pre-line" }),
+        ...(fitted.clamped
+          ? multi
+            ? { maxHeight, overflow: "hidden" }
+            : {
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: clampLines,
+                overflow: "hidden",
+              }
+          : null),
+        ...style,
+      }}
+    >
+      {multi
+        ? paragraphs.map((p, i) => (
+            <div key={i} style={{ whiteSpace: "pre-line" }}>
+              {p}
+            </div>
+          ))
+        : text}
+    </div>
+  );
+}
+
+/**
  * Tagline text component — uses script font for "rich-traditional" style.
+ * Honors literal line breaks (`\n`) via `white-space: pre-line`. When a `fit`
+ * budget is supplied, the font auto-scales to stay within the template's copy
+ * area (see {@link FitText}); the supplied `fontSize` (times any manual
+ * `fontSizeScale`) is treated as the target/maximum size.
  */
 export function TaglineText({
   text,
@@ -390,7 +577,9 @@ export function TaglineText({
   fontWeightOverride,
   fontStyleOverride,
   fontSizeScale,
+  paragraphScale,
   fontFamily,
+  fit,
 }: {
   text: string;
   color: string;
@@ -402,7 +591,9 @@ export function TaglineText({
   fontWeightOverride?: number;
   fontStyleOverride?: "normal" | "italic";
   fontSizeScale?: number;
+  paragraphScale?: number;
   fontFamily?: string;
+  fit?: TaglineFit;
 }) {
   const defaultWeight = isScript ? 400 : 600;
   const defaultStyle = isScript ? "italic" : "normal";
@@ -410,21 +601,60 @@ export function TaglineText({
     ? "'Georgia', 'Palatino Linotype', 'Book Antiqua', serif"
     : "'Inter', 'DM Sans', sans-serif";
 
+  const resolvedWeight = fontWeightOverride ?? defaultWeight;
+  const resolvedStyle = fontStyleOverride ?? defaultStyle;
+  const resolvedFamily = fontFamily ?? defaultFamily;
+  const maxFontSize = fontSize * (fontSizeScale ?? 1);
+  const resolvedParagraphScale = paragraphScale ?? 1;
+
+  if (fit) {
+    return (
+      <FitText
+        text={text}
+        color={color}
+        maxFontSize={maxFontSize}
+        // Never let the floor exceed the user's chosen size.
+        minFontSize={Math.min(fit.minFontSize, maxFontSize)}
+        maxHeight={fit.maxHeight}
+        lineHeight={lineHeight}
+        paragraphScale={resolvedParagraphScale}
+        fontWeight={resolvedWeight}
+        fontStyle={resolvedStyle}
+        fontFamily={resolvedFamily}
+        maxWidth={maxWidth}
+        style={style}
+      />
+    );
+  }
+
+  const paragraphs = text.split(PARAGRAPH_SPLIT);
+  const multi = paragraphs.length > 1;
+
   return (
     <div
       style={{
         color,
-        fontSize: fontSize * (fontSizeScale ?? 1),
-        fontWeight: fontWeightOverride ?? defaultWeight,
-        fontFamily: fontFamily ?? defaultFamily,
-        fontStyle: fontStyleOverride ?? defaultStyle,
+        fontSize: maxFontSize,
+        fontWeight: resolvedWeight,
+        fontFamily: resolvedFamily,
+        fontStyle: resolvedStyle,
         lineHeight,
         maxWidth,
         textAlign: "center",
+        overflowWrap: "break-word",
+        ...(multi
+          ? { display: "flex", flexDirection: "column", gap: `${lineHeight * resolvedParagraphScale}em` }
+          : { whiteSpace: "pre-line" }),
         ...style,
       }}
     >
-      {text}
+      {multi
+        ? paragraphs.map((p, i) => (
+            <div key={i} style={{ whiteSpace: "pre-line" }}>
+              {p}
+            </div>
+          ))
+        : text}
     </div>
   );
 }

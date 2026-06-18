@@ -108,12 +108,14 @@ export type TaglineStyle = {
   fontWeight: 400 | 600 | 700;
   fontStyle: "normal" | "italic";
   fontSizeScale: number; // 0.7–1.5, default 1
+  paragraphScale: number; // 0–1 multiplier on the blank-line gap (double line break), default 1 (= natural height)
 };
 
 export const DEFAULT_TAGLINE_STYLE: TaglineStyle = {
   fontWeight: 600,
   fontStyle: "normal",
   fontSizeScale: 1,
+  paragraphScale: 1,
 };
 
 export type AdConfig = {

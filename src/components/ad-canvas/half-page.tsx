@@ -14,6 +14,7 @@ import {
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
+  TAGLINE_FIT,
 } from "./shared";
 import { getContrastColor } from "@/lib/color-utils";
 
@@ -50,7 +51,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, position: "relative", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', sans-serif", display: "flex", flexDirection: "column", ...borderStyles }}>
         <div style={{ background: bg, padding: "20px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
           {placement === "top" && logoEl}
-          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} {...ts} />
+          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} fit={TAGLINE_FIT["half-page"]} {...ts} />
           {placement === "middle" && logoEl}
           <DescriptionText text={config.description} color={textColor} fontSize={14} maxWidth={230} />
         </div>
@@ -74,7 +75,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
         <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           {placement === "top" && logoEl}
-          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} {...ts} />
+          <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} fit={TAGLINE_FIT["half-page"]} {...ts} />
           {placement === "middle" && logoEl}
           <DescriptionText text={config.description} color={textColor} fontSize={14} maxWidth={230} />
           <PhotoImage
@@ -101,7 +102,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28 }}>
           {placement === "top" && logoEl}
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
-          <TaglineText text={tagline} color={textColor} fontSize={26} isScript maxWidth={240} lineHeight={1.4} {...ts} />
+          <TaglineText text={tagline} color={textColor} fontSize={26} isScript maxWidth={240} lineHeight={1.4} fit={TAGLINE_FIT["half-page"]} {...ts} />
           {placement === "middle" && logoEl}
           <DescriptionText text={config.description} color={textColor} fontSize={15} maxWidth={230} />
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
@@ -118,7 +119,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
         {placement === "top" && logoEl}
-        <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} {...ts} />
+        <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} fit={TAGLINE_FIT["half-page"]} {...ts} />
         {placement === "middle" && logoEl}
         <DescriptionText text={config.description} color={textColor} fontSize={15} maxWidth={230} />
         <CtaButton text={ctaText} bgColor={colors.accent} fontSize={16} padding="14px 36px" />

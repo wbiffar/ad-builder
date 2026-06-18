@@ -16,6 +16,12 @@ import { Switch } from "@/components/ui/switch";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { BorderPanel, GradientPanel, LabsDesignPanel } from "@/components/design-elements/design-panel";
 
+// Tagline copy limits (DES-2209). A single tagline feeds every ad size, so
+// these are global caps; each template then auto-scales the copy to fit its
+// own bounds. The line cap keeps Enter-inserted breaks from growing unbounded.
+const MAX_TAGLINE_LINES = 5;
+const MAX_TAGLINE_CHARS = 120;
+
 type AdFormProps = {
   config: AdConfig;
   onChange: (config: AdConfig) => void;
@@ -29,6 +35,13 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     taglineStyle: rawConfig.taglineStyle ?? DEFAULT_TAGLINE_STYLE,
     taglineFont: rawConfig.taglineFont ?? "DM Sans",
   };
+
+  const taglineLines = config.tagline.split("\n").length;
+  const taglineAtLimit =
+    taglineLines >= MAX_TAGLINE_LINES || config.tagline.length >= MAX_TAGLINE_CHARS;
+  // A double line break starts a new paragraph — only then is the spacing control relevant.
+  const hasParagraphBreak = /\n{2,}/.test(config.tagline);
+  const paragraphScale = config.taglineStyle.paragraphScale ?? 1;
 
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
@@ -337,7 +350,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-sm font-semibold">Tagline</CardTitle>
-            <span className="text-xs text-muted-foreground">{config.tagline.length}/70</span>
+            <span className={`text-xs ${taglineAtLimit ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>
+              {taglineLines}/{MAX_TAGLINE_LINES} lines · {config.tagline.length}/{MAX_TAGLINE_CHARS}
+            </span>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -345,11 +360,22 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
             id="tagline"
             value={config.tagline}
             onChange={(e) => {
-              if (e.target.value.length <= 70) update({ tagline: e.target.value });
+              const v = e.target.value;
+              if (v.length <= MAX_TAGLINE_CHARS && v.split("\n").length <= MAX_TAGLINE_LINES) {
+                update({ tagline: v });
+              }
             }}
-            placeholder="Compassionate care in your time of need"
-            rows={2}
+            placeholder={"Compassionate care\nin your time of need"}
+            rows={3}
           />
+          <p className="text-[10px] text-muted-foreground">
+            Press Enter to add a line break. Copy auto-scales to fit each ad size.
+          </p>
+          {taglineAtLimit && (
+            <p className="text-[10px] text-amber-600">
+              Maximum copy length reached. On smaller ad sizes, copy this long is scaled to the minimum size and may be trimmed to fit.
+            </p>
+          )}
           {/* Tagline style controls */}
           <div className="flex items-center gap-2">
             <button
@@ -413,6 +439,22 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
               </option>
             ))}
           </select>
+          {/* Paragraph spacing — only relevant once the copy has a blank-line break */}
+          {hasParagraphBreak && (
+            <div className="flex items-center gap-2 pt-0.5">
+              <Label className="text-[10px] text-muted-foreground whitespace-nowrap">Paragraph spacing</Label>
+              <div className="flex-1 flex items-center gap-2">
+                <RangeSlider
+                  min={0}
+                  max={100}
+                  step={10}
+                  value={Math.round(paragraphScale * 100)}
+                  onChange={(v) => update({ taglineStyle: { ...config.taglineStyle, paragraphScale: v / 100 } })}
+                />
+                <span className="text-[10px] text-muted-foreground w-8 text-right">{Math.round(paragraphScale * 100)}%</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

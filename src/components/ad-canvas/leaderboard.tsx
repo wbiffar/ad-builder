@@ -14,6 +14,7 @@ import {
   getGradientCSS,
   getBorderStyles,
   DesignElementOverlay,
+  TAGLINE_FIT,
 } from "./shared";
 import { getContrastColor } from "@/lib/color-utils";
 
@@ -35,6 +36,7 @@ export function LeaderboardTemplate({
   const ts = getTaglineStyleProps(config.taglineStyle, config.taglineFont);
 
   const isLarge = width >= 970;
+  const taglineFit = TAGLINE_FIT[isLarge ? "large-leaderboard" : "leaderboard"];
   const logoMaxW = isLarge ? 120 : 100;
   const logoMaxH = isLarge ? 55 : 50;
   const tagFontSize = isLarge ? 17 : 15;
@@ -64,7 +66,7 @@ export function LeaderboardTemplate({
         )}
         <div style={{ flex: 1, background: bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px", gap: 12 }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} {...ts} />
+            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} fit={taglineFit} {...ts} />
             <DescriptionText text={config.description} color={textColor} fontSize={descFontSize} style={{ textAlign: "center" }} />
           </div>
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={ctaFontSize} padding="8px 18px" />
@@ -87,7 +89,7 @@ export function LeaderboardTemplate({
             <div style={{ width: accentLine.width, height: "60%", backgroundColor: accentLine.color, flexShrink: 0 }} />
           )}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, order: 1 }}>
-            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} {...ts} />
+            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} fit={taglineFit} {...ts} />
             <DescriptionText text={config.description} color={textColor} fontSize={descFontSize} style={{ textAlign: "center" }} />
           </div>
           <div style={{ order: ctaOrder, flexShrink: 0 }}>
@@ -110,7 +112,7 @@ export function LeaderboardTemplate({
             <div style={{ width: accentLine.width, height: "60%", backgroundColor: accentLine.color, flexShrink: 0 }} />
           )}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, order: 1 }}>
-            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} isScript style={{ textAlign: "center" }} lineHeight={1.2} {...ts} />
+            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} isScript style={{ textAlign: "center" }} lineHeight={1.2} fit={taglineFit} {...ts} />
             <DescriptionText text={config.description} color={textColor} fontSize={descFontSize} style={{ textAlign: "center" }} />
           </div>
           <div style={{ order: ctaOrder, flexShrink: 0 }}>
@@ -128,7 +130,7 @@ export function LeaderboardTemplate({
       <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 20, width: "100%", justifyContent: "space-between" }}>
         <div style={{ order: logoOrder, flexShrink: 0 }}>{logoEl}</div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, order: 1 }}>
-          <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} {...ts} />
+          <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} fit={taglineFit} {...ts} />
           <DescriptionText text={config.description} color={textColor} fontSize={descFontSize} style={{ textAlign: "center" }} />
         </div>
         <div style={{ order: ctaOrder, flexShrink: 0 }}>
