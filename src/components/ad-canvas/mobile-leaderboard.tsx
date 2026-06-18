@@ -53,7 +53,8 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
           WebkitBoxOrient: "vertical",
           order: 1,
         }}>
-          {tagline}
+          {/* 320x50 is too short for multi-line copy — collapse line breaks to spaces (DES-2209). */}
+          {tagline.replace(/\s*\n\s*/g, " ")}
         </div>
         <div style={{ order: ctaOrder, flexShrink: 0 }}>
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={9} padding="4px 10px" />
