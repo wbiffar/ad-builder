@@ -70,29 +70,38 @@ export function CtaButton({
 /**
  * Renders the logo image, optionally inside a white container.
  */
+// Minimum white-container padding in px.
+const LOGO_CONTAINER_MIN_PAD = 1;
+// Corner radius of the white container, capped at the padding so the rounded
+// corner never cuts inside the logo's square corners.
+const LOGO_CONTAINER_RADIUS = 6;
+
 export function LogoImage({
   src,
   maxWidth,
   maxHeight,
   whiteContainer = false,
   scale = 1,
+  containerPadding = LOGO_CONTAINER_MIN_PAD,
 }: {
   src: string;
   maxWidth: number;
   maxHeight: number;
   whiteContainer?: boolean;
   scale?: number;
+  containerPadding?: number;
 }) {
   const scaledMaxW = maxWidth * scale;
   const scaledMaxH = maxHeight * scale;
+  const pad = Math.max(LOGO_CONTAINER_MIN_PAD, containerPadding);
 
   const img = (
     <img
       src={src}
       alt="Logo"
       style={{
-        maxWidth: whiteContainer ? scaledMaxW - 16 : scaledMaxW,
-        maxHeight: whiteContainer ? scaledMaxH - 12 : scaledMaxH,
+        maxWidth: whiteContainer ? Math.max(0, scaledMaxW - pad * 2) : scaledMaxW,
+        maxHeight: whiteContainer ? Math.max(0, scaledMaxH - pad * 2) : scaledMaxH,
         objectFit: "contain",
         display: "block",
       }}
@@ -105,8 +114,8 @@ export function LogoImage({
       <div
         style={{
           backgroundColor: "#ffffff",
-          borderRadius: 6,
-          padding: "6px 8px",
+          borderRadius: Math.min(LOGO_CONTAINER_RADIUS, pad),
+          padding: pad,
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",

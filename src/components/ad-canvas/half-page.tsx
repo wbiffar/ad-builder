@@ -34,6 +34,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const ls = logoSettings.scale ?? 1;
+  const cs = logoSettings.containerPadding ?? 1;
   const placement = logoSettings.placement ?? "top";
   const logoAlign = getAlignSelf(logoSettings.alignment);
   const accentLine = designElements.accentLine;
@@ -41,7 +42,7 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
 
   const logoEl = logoUrl ? (
     <div style={{ alignSelf: logoAlign }}>
-      <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} />
+      <LogoImage src={logoUrl} maxWidth={180} maxHeight={100} whiteContainer={wc} scale={ls} containerPadding={cs} />
     </div>
   ) : null;
 

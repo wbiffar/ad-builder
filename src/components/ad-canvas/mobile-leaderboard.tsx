@@ -23,6 +23,7 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const ls = logoSettings.scale ?? 1;
+  const cs = logoSettings.containerPadding ?? 1;
   const placement = logoSettings.placement ?? "top";
   const isScript = templateStyle === "rich-traditional";
   const tss = taglineStyle ?? { fontWeight: 600, fontStyle: "normal" as const, fontSizeScale: 1 };
@@ -36,7 +37,7 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
       <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "space-between" }}>
         <div style={{ order: logoOrder, flexShrink: 0 }}>
-          {logoUrl && <LogoImage src={logoUrl} maxWidth={60} maxHeight={35} whiteContainer={wc} scale={ls} />}
+          {logoUrl && <LogoImage src={logoUrl} maxWidth={60} maxHeight={35} whiteContainer={wc} scale={ls} containerPadding={cs} />}
         </div>
         <div style={{
           color: textColor,
