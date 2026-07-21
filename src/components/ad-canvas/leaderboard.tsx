@@ -57,7 +57,7 @@ export function LeaderboardTemplate({
           <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp }} crossOrigin="anonymous" />
           {logoUrl && (
             <div style={{ position: "absolute", bottom: 6, left: 6, zIndex: 2 }}>
-              <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer scale={ls} />
+              <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer={wc} scale={ls} />
             </div>
           )}
         </div>
