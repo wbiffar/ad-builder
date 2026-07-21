@@ -13,7 +13,6 @@ import {
   getTaglineStyleProps,
   getGradientCSS,
   getBorderStyles,
-  DesignElementOverlay,
   TAGLINE_FIT,
 } from "./shared";
 import { getContrastColor } from "@/lib/color-utils";
@@ -72,7 +71,6 @@ export function LeaderboardTemplate({
           </div>
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={ctaFontSize} padding="8px 18px" />
         </div>
-        <DesignElementOverlay elements={designElements} width={width} height={height} />
       </div>
     );
   }
@@ -97,7 +95,6 @@ export function LeaderboardTemplate({
             <CtaButton text={ctaText} bgColor={colors.accent} fontSize={ctaFontSize} padding="8px 18px" />
           </div>
         </div>
-        <DesignElementOverlay elements={designElements} width={width} height={height} />
       </div>
     );
   }
@@ -106,7 +103,6 @@ export function LeaderboardTemplate({
   if (templateStyle === "rich-traditional") {
     return (
       <div ref={adRef} style={{ width, height, background: bg, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", gap: 16, fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
-        <DesignElementOverlay elements={designElements} width={width} height={height} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 16, width: "100%", justifyContent: "space-between" }}>
           <div style={{ order: logoOrder, flexShrink: 0 }}>{logoEl}</div>
           {accentLine.enabled && (
@@ -127,7 +123,6 @@ export function LeaderboardTemplate({
   // --- CLEAN & MINIMAL (default): clean horizontal ---
   return (
     <div ref={adRef} style={{ width, height, background: bg, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", gap: 20, fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
-      <DesignElementOverlay elements={designElements} width={width} height={height} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 20, width: "100%", justifyContent: "space-between" }}>
         <div style={{ order: logoOrder, flexShrink: 0 }}>{logoEl}</div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, order: 1 }}>

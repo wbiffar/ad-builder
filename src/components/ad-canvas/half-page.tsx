@@ -13,7 +13,6 @@ import {
   getTaglineStyleProps,
   getGradientCSS,
   getBorderStyles,
-  DesignElementOverlay,
   TAGLINE_FIT,
 } from "./shared";
 import { getContrastColor } from "@/lib/color-utils";
@@ -64,7 +63,6 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={15} padding="12px 32px" />
           {placement === "bottom" && logoEl}
         </div>
-        <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       </div>
     );
   }
@@ -73,7 +71,6 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   if (templateStyle === "people-first" && additionalImageUrl) {
     return (
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 16, ...borderStyles }}>
-        <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           {placement === "top" && logoEl}
           <TaglineText text={tagline} color={textColor} fontSize={20} maxWidth={240} lineHeight={1.35} fit={TAGLINE_FIT["half-page"]} {...ts} />
@@ -99,7 +96,6 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   if (templateStyle === "rich-traditional") {
     return (
       <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 36, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
-        <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
         <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 28 }}>
           {placement === "top" && logoEl}
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
@@ -117,7 +113,6 @@ export function HalfPage({ config, adRef }: AdTemplateProps) {
   // --- CLEAN & MINIMAL (default): clean vertical stack ---
   return (
     <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, textAlign: "center", fontFamily: "'Inter', 'DM Sans', sans-serif", gap: 24, ...borderStyles }}>
-      <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
         {placement === "top" && logoEl}
         <TaglineText text={tagline} color={textColor} fontSize={24} maxWidth={240} lineHeight={1.35} fit={TAGLINE_FIT["half-page"]} {...ts} />

@@ -38,37 +38,9 @@ export type DesignElementGradient = {
   stops: { color: string; position: number }[];
 };
 
-export type DesignElementIcon = {
-  enabled: boolean;
-  id: string;
-  color: string;
-  size: number;
-  position: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
-  opacity: number;
-};
-
-export type DesignElementIllustration = {
-  enabled: boolean;
-  id: string;
-  opacity: number;
-  scale: number;
-  position: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "background";
-};
-
-export type DesignElementShape = {
-  enabled: boolean;
-  type: "line" | "circle" | "rectangle";
-  color: string;
-  opacity: number;
-  position: "top" | "bottom" | "left" | "right" | "center";
-};
-
 export type DesignElements = {
   border: DesignElementBorder;
   gradient: DesignElementGradient;
-  icon: DesignElementIcon;
-  illustration: DesignElementIllustration;
-  shape: DesignElementShape;
   accentLine: AccentLine;
 };
 
@@ -178,28 +150,6 @@ export const DEFAULT_DESIGN_ELEMENTS: DesignElements = {
       { color: "#293548", position: 0 },
       { color: "#42608f", position: 100 },
     ],
-  },
-  icon: {
-    enabled: false,
-    id: "dove",
-    color: "#ffffff",
-    size: 32,
-    position: "top-right",
-    opacity: 0.3,
-  },
-  illustration: {
-    enabled: false,
-    id: "floral-corner",
-    opacity: 0.15,
-    scale: 1,
-    position: "bottom-right",
-  },
-  shape: {
-    enabled: false,
-    type: "line",
-    color: "#dcb05e",
-    opacity: 0.5,
-    position: "bottom",
   },
   accentLine: DEFAULT_ACCENT_LINE,
 };
