@@ -97,6 +97,7 @@ export type LogoAlignment = "left" | "center" | "right";
 
 export type LogoSettings = {
   whiteContainer: boolean;
+  containerPadding: number; // px of white padding around the logo, default 1, min 1
   placement: LogoPlacement;
   alignment: LogoAlignment;
   scale: number; // 0.5–2, default 1
@@ -218,6 +219,7 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   designElements: DEFAULT_DESIGN_ELEMENTS,
   logoSettings: {
     whiteContainer: false,
+    containerPadding: 1,
     placement: "top",
     alignment: "center",
     scale: 1,

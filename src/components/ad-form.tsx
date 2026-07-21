@@ -311,6 +311,22 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                   }
                 />
               </div>
+              {config.logoSettings.whiteContainer && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Container size</Label>
+                    <span className="text-xs text-muted-foreground">{config.logoSettings.containerPadding ?? 1}px</span>
+                  </div>
+                  <RangeSlider
+                    min={1}
+                    max={24}
+                    step={1}
+                    value={config.logoSettings.containerPadding ?? 1}
+                    onChange={(v) => update({ logoSettings: { ...config.logoSettings, containerPadding: v } })}
+                    className="mt-1"
+                  />
+                </div>
+              )}
               <div>
                 <Label className="text-xs">Logo placement</Label>
                 <select
