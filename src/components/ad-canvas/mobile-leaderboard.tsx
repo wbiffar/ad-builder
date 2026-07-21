@@ -8,7 +8,6 @@ import {
   TaglineText,
   getGradientCSS,
   getBorderStyles,
-  DesignElementOverlay,
 } from "./shared";
 import { getContrastColor } from "@/lib/color-utils";
 import { getFontFallback } from "@/lib/fonts";
@@ -34,7 +33,6 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
 
   return (
     <div ref={adRef} style={{ width: WIDTH, height: HEIGHT, background: bg, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px", gap: 8, fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
-      <DesignElementOverlay elements={designElements} width={WIDTH} height={HEIGHT} />
       <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "space-between" }}>
         <div style={{ order: logoOrder, flexShrink: 0 }}>
           {logoUrl && <LogoImage src={logoUrl} maxWidth={60} maxHeight={35} whiteContainer={wc} scale={ls} containerPadding={cs} />}

@@ -11,10 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { BorderPanel, GradientPanel, LabsDesignPanel } from "@/components/design-elements/design-panel";
+import { BorderPanel, GradientPanel } from "@/components/design-elements/design-panel";
 
 // Tagline copy limits (DES-2209). A single tagline feeds every ad size, so
 // these are global caps; each template then auto-scales the copy to fit its
@@ -47,18 +46,12 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
   const [logoDragActive, setLogoDragActive] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
-  const [inspirationDragActive, setInspirationDragActive] = useState(false);
-  const [inspirationUrl, setInspirationUrl] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisDescription, setAnalysisDescription] = useState<string | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Load selected Google Font
   useEffect(() => {
     if (config.taglineFont) loadGoogleFont(config.taglineFont);
   }, [config.taglineFont]);
-  const inspirationInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const update = useCallback(
@@ -150,88 +143,6 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     e.preventDefault();
     e.stopPropagation();
   }, []);
-
-  const processInspirationFile = useCallback(
-    async (file: File) => {
-      if (!file.type.startsWith("image/")) return;
-
-      const url = await fileToDataUrl(file);
-      setInspirationUrl(url);
-      setIsAnalyzing(true);
-      setAnalysisError(null);
-      setAnalysisDescription(null);
-
-      try {
-        // Convert to base64
-        const buffer = await file.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
-
-        const res = await fetch("/api/analyze-inspiration", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: base64, mediaType: file.type }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Analysis failed");
-
-        const a = data.analysis;
-
-        // Apply analysis to config
-        const newConfig: Partial<AdConfig> = {
-          colors: a.colors || config.colors,
-          designElements: {
-            ...config.designElements,
-            border: a.border
-              ? { ...config.designElements.border, ...a.border }
-              : config.designElements.border,
-            gradient: a.gradient
-              ? { ...config.designElements.gradient, ...a.gradient }
-              : config.designElements.gradient,
-          },
-          logoSettings: {
-            ...config.logoSettings,
-            whiteContainer: a.layout?.whiteLogoContainer ?? config.logoSettings.whiteContainer,
-            placement: a.layout?.logoPlacement ?? config.logoSettings.placement,
-          },
-          variant: a.layout?.variant ?? config.variant,
-          templateStyle: a.layout?.templateStyle ?? config.templateStyle,
-        };
-
-        onChange({ ...config, ...newConfig });
-        setAnalysisDescription(a.description || "Style applied");
-      } catch (err) {
-        console.error("Inspiration analysis failed:", err);
-        setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
-      } finally {
-        setIsAnalyzing(false);
-      }
-    },
-    [config, onChange]
-  );
-
-  const handleInspirationUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) processInspirationFile(file);
-    },
-    [processInspirationFile]
-  );
-
-  const handleInspirationDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setInspirationDragActive(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) processInspirationFile(file);
-    },
-    [processInspirationFile]
-  );
-
-  const [labsOpen, setLabsOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -794,112 +705,6 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         elements={config.designElements}
         onChange={(elements) => onChange({ ...config, designElements: elements })}
       />
-
-      {/* Labs — collapsible section for experimental features */}
-      <div className="space-y-3">
-        <button
-          className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg border border-dashed border-border hover:border-primary/40 transition-colors text-left"
-          onClick={() => setLabsOpen(!labsOpen)}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Labs</span>
-            <Badge variant="outline" className="text-[9px] font-normal">Experimental</Badge>
-          </div>
-          <svg
-            className={`w-4 h-4 text-muted-foreground transition-transform ${labsOpen ? "rotate-180" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {labsOpen && (
-          <div className="space-y-4 pl-1">
-            {/* Inspiration Image */}
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  Inspiration Image
-                  <Badge variant="outline" className="text-[10px] font-normal">AI-powered</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div
-                  className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-                    inspirationDragActive
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragEnter={(e) => { e.preventDefault(); setInspirationDragActive(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); setInspirationDragActive(false); }}
-                  onDrop={handleInspirationDrop}
-                  onClick={() => !inspirationUrl && inspirationInputRef.current?.click()}
-                >
-                  {inspirationUrl ? (
-                    <div className="space-y-2">
-                      <img
-                        src={inspirationUrl}
-                        alt="Inspiration"
-                        className="max-h-24 mx-auto object-contain rounded"
-                      />
-                      {isAnalyzing && (
-                        <p className="text-xs text-primary font-medium animate-pulse">
-                          Analyzing design...
-                        </p>
-                      )}
-                      {analysisDescription && (
-                        <p className="text-xs text-muted-foreground italic">{analysisDescription}</p>
-                      )}
-                      {analysisError && (
-                        <p className="text-xs text-red-500">{analysisError}</p>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setInspirationUrl(null);
-                          setAnalysisDescription(null);
-                          setAnalysisError(null);
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="text-muted-foreground text-xs">
-                        {inspirationDragActive ? "Drop image here" : "Drop an ad you like, or click to upload"}
-                      </div>
-                      <div className="text-muted-foreground text-[10px] mt-0.5">
-                        AI will match its colors, layout, and style
-                      </div>
-                      <input
-                        ref={inspirationInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={handleInspirationUpload}
-                      />
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Shape, Icon, Illustration */}
-            <LabsDesignPanel
-              elements={config.designElements}
-              colors={config.colors}
-              onChange={(elements) => onChange({ ...config, designElements: elements })}
-            />
-          </div>
-        )}
-      </div>
-
     </div>
   );
 }
