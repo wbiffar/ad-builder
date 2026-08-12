@@ -1,5 +1,6 @@
-import { AdConfig } from "./types";
+import { AdConfig, PersistedAdConfig, PersistedSavedAdSet } from "./types";
 import { SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
+import { serializeConfig, hydrateConfig } from "./asset-store";
 
 // --- Minimal File System Access API typings ---
 // These cover the non-standard / not-yet-ubiquitous surface we rely on, so the
@@ -101,10 +102,17 @@ export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet
   if (!(await verifyPermission(handle))) {
     throw new Error("Write permission for the shared folder was denied.");
   }
+  // Externalize images into assets/ so the JSON we sync stays small; the same
+  // logo shared across ad sizes collapses to one file via content hashing.
+  const configMap: Record<string, PersistedAdConfig> = {};
+  for (const [size, cfg] of Object.entries(adSet.configMap)) {
+    configMap[size] = await serializeConfig(handle, cfg);
+  }
+  const persisted: PersistedSavedAdSet = { ...adSet, configMap };
   const fileHandle = await handle.getFileHandle(fileNameFor(adSet.id), { create: true });
   const writable = await fileHandle.createWritable();
   try {
-    await writable.write(JSON.stringify(adSet, null, 2));
+    await writable.write(JSON.stringify(persisted, null, 2));
   } finally {
     await writable.close();
   }
@@ -117,14 +125,17 @@ export async function loadAdSetsFromFolder(handle: FileSystemDirectoryHandle): P
     if (entry.kind !== "file" || !entry.name.endsWith(".json")) continue;
     try {
       const file = await (entry as FileSystemFileHandle).getFile();
-      const parsed = JSON.parse(await file.text()) as Partial<SavedAdSet>;
+      const parsed = JSON.parse(await file.text()) as Partial<PersistedSavedAdSet>;
       if (!parsed.id || !parsed.configMap) {
         console.warn(`Skipping malformed ad set file: ${entry.name}`);
         continue;
       }
+      // Resolve asset references back to data URLs, then fill in any missing
+      // fields. Legacy files with inline data URLs pass through hydrate as-is.
       const configMap: Record<string, AdConfig> = {};
       for (const [size, cfg] of Object.entries(parsed.configMap)) {
-        configMap[size] = migrateAdConfig(cfg ?? {});
+        const hydrated = await hydrateConfig(handle, (cfg ?? {}) as PersistedAdConfig);
+        configMap[size] = migrateAdConfig(hydrated);
       }
       results.push({
         id: parsed.id,

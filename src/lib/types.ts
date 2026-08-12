@@ -118,6 +118,38 @@ export type SavedBrand = {
   createdAt: string;
 };
 
+/**
+ * A content-addressed reference to an image stored outside the ad-set JSON
+ * (in the shared folder's `assets/` subdirectory). Keeps the JSON small so it
+ * syncs cheaply through Google Drive Stream instead of embedding megabytes of
+ * base64 per file. `assetId` is the SHA-256 hex of the raw bytes, so identical
+ * images (e.g. the same logo across every ad size) dedupe to a single file.
+ */
+export type AssetRef = {
+  assetId: string;
+  mime: string;
+  ext: string;
+};
+
+/**
+ * AdConfig as persisted to the shared folder. The two image fields hold an
+ * AssetRef (new format) instead of an inline data URL. Legacy files still carry
+ * a plain data-URL string here; the hydrate step tolerates both, so old ad sets
+ * keep loading and are only converted to the external format on their next save.
+ */
+export type PersistedAdConfig = Omit<AdConfig, "logoUrl" | "additionalImageUrl"> & {
+  logoUrl: AssetRef | string | null;
+  additionalImageUrl: AssetRef | string | null;
+};
+
+export type PersistedSavedAdSet = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  configMap: Record<string, PersistedAdConfig>;
+};
+
 export const DEFAULT_COLORS: BrandColors = {
   primary: "#293548",
   secondary: "#42608f",
