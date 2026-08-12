@@ -1,5 +1,6 @@
-import { AdConfig } from "./types";
-import { SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
+import { AdConfig, PersistedAdConfig, PersistedSavedAdSet } from "./types";
+import { AdSetMetadata, SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
+import { serializeConfig, hydrateConfig } from "./asset-store";
 
 // --- Minimal File System Access API typings ---
 // These cover the non-standard / not-yet-ubiquitous surface we rely on, so the
@@ -101,37 +102,47 @@ export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet
   if (!(await verifyPermission(handle))) {
     throw new Error("Write permission for the shared folder was denied.");
   }
+  // Externalize images into assets/ so the JSON we sync stays small; the same
+  // logo shared across ad sizes collapses to one file via content hashing.
+  const configMap: Record<string, PersistedAdConfig> = {};
+  for (const [size, cfg] of Object.entries(adSet.configMap)) {
+    configMap[size] = await serializeConfig(handle, cfg);
+  }
+  const persisted: PersistedSavedAdSet = { ...adSet, configMap };
   const fileHandle = await handle.getFileHandle(fileNameFor(adSet.id), { create: true });
   const writable = await fileHandle.createWritable();
   try {
-    await writable.write(JSON.stringify(adSet, null, 2));
+    await writable.write(JSON.stringify(persisted, null, 2));
   } finally {
     await writable.close();
   }
 }
 
-export async function loadAdSetsFromFolder(handle: FileSystemDirectoryHandle): Promise<SavedAdSet[]> {
-  const results: SavedAdSet[] = [];
+/**
+ * Lists the ad sets in the folder as lightweight metadata — WITHOUT resolving
+ * any image assets. This is the key to avoiding the Drive "Stream" freeze: the
+ * assets/ subdirectory is never touched, so listing (even of many sets) never
+ * downloads image bytes. Image data is fetched only when a set is opened via
+ * readAdSet. Legacy files that still inline data URLs are read whole here (their
+ * JSON carries the images), but shrink to metadata-only reads once re-saved.
+ */
+export async function listAdSetsMetadata(handle: FileSystemDirectoryHandle): Promise<AdSetMetadata[]> {
+  const results: AdSetMetadata[] = [];
   const iterable = handle as unknown as IterableDirectoryHandle;
   for await (const entry of iterable.values()) {
     if (entry.kind !== "file" || !entry.name.endsWith(".json")) continue;
     try {
       const file = await (entry as FileSystemFileHandle).getFile();
-      const parsed = JSON.parse(await file.text()) as Partial<SavedAdSet>;
+      const parsed = JSON.parse(await file.text()) as Partial<PersistedSavedAdSet>;
       if (!parsed.id || !parsed.configMap) {
         console.warn(`Skipping malformed ad set file: ${entry.name}`);
         continue;
-      }
-      const configMap: Record<string, AdConfig> = {};
-      for (const [size, cfg] of Object.entries(parsed.configMap)) {
-        configMap[size] = migrateAdConfig(cfg ?? {});
       }
       results.push({
         id: parsed.id,
         name: parsed.name ?? "Untitled Ad Set",
         createdAt: parsed.createdAt ?? new Date().toISOString(),
         updatedAt: parsed.updatedAt ?? new Date().toISOString(),
-        configMap,
       });
     } catch (err) {
       console.error(`Failed to parse shared ad set file: ${entry.name}`, err);
@@ -139,6 +150,90 @@ export async function loadAdSetsFromFolder(handle: FileSystemDirectoryHandle): P
   }
   results.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   return results;
+}
+
+/**
+ * Reads a single ad set by id and hydrates its image assets into data URLs.
+ * Only the one requested file and its assets are read, so opening a set costs
+ * exactly that set's data — not the whole folder. Returns null if the file is
+ * missing or malformed.
+ */
+export async function readAdSet(handle: FileSystemDirectoryHandle, id: string): Promise<SavedAdSet | null> {
+  let file: File;
+  try {
+    const fileHandle = await handle.getFileHandle(fileNameFor(id));
+    file = await fileHandle.getFile();
+  } catch (err) {
+    if ((err as DOMException)?.name === "NotFoundError") return null;
+    throw err;
+  }
+  try {
+    const parsed = JSON.parse(await file.text()) as Partial<PersistedSavedAdSet>;
+    if (!parsed.id || !parsed.configMap) {
+      console.warn(`Skipping malformed ad set file: ${fileNameFor(id)}`);
+      return null;
+    }
+    // Resolve asset references back to data URLs, then fill in any missing
+    // fields. Legacy files with inline data URLs pass through hydrate as-is.
+    const configMap: Record<string, AdConfig> = {};
+    for (const [size, cfg] of Object.entries(parsed.configMap)) {
+      const hydrated = await hydrateConfig(handle, (cfg ?? {}) as PersistedAdConfig);
+      configMap[size] = migrateAdConfig(hydrated);
+    }
+    return {
+      id: parsed.id,
+      name: parsed.name ?? "Untitled Ad Set",
+      createdAt: parsed.createdAt ?? new Date().toISOString(),
+      updatedAt: parsed.updatedAt ?? new Date().toISOString(),
+      configMap,
+    };
+  } catch (err) {
+    console.error(`Failed to read shared ad set: ${id}`, err);
+    return null;
+  }
+}
+
+export type CompactProgress = { done: number; total: number };
+export type CompactResult = { migrated: number; failed: number };
+
+/**
+ * Rewrites every ad set in the folder through the current save path: reads each
+ * set (hydrating its images) and saves it back, which externalizes any inline
+ * images into assets/ and shrinks the JSON. This is a one-time migration for
+ * folders created before image externalization — once compacted, listing the
+ * folder no longer downloads image data. Re-running it is safe: already-external
+ * sets simply re-write identical (content-hashed) assets, which are skipped.
+ *
+ * Names, ids, and timestamps are preserved. Runs serially and deliberately — it
+ * is a heavy operation best triggered from a machine whose Drive copy is local
+ * (Mirror mode) so the affected user never sweeps the old files.
+ */
+export async function compactFolder(
+  handle: FileSystemDirectoryHandle,
+  onProgress?: (p: CompactProgress) => void
+): Promise<CompactResult> {
+  if (!(await verifyPermission(handle))) {
+    throw new Error("Write permission for the shared folder was denied.");
+  }
+  const metas = await listAdSetsMetadata(handle);
+  let migrated = 0;
+  let failed = 0;
+  for (let i = 0; i < metas.length; i++) {
+    try {
+      const set = await readAdSet(handle, metas[i].id);
+      if (set) {
+        await saveAdSetToFolder(handle, set);
+        migrated++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      console.error(`Failed to compact ad set ${metas[i].id}`, err);
+      failed++;
+    }
+    onProgress?.({ done: i + 1, total: metas.length });
+  }
+  return { migrated, failed };
 }
 
 export async function deleteAdSetFromFolder(handle: FileSystemDirectoryHandle, id: string): Promise<void> {

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { AdConfig, AdSize, AD_SIZES, DEFAULT_AD_CONFIG } from "@/lib/types";
 import { exportAdAsPng, exportAllAdsAsZip } from "@/lib/export";
-import { SavedAdSet, getSavedAdSets, saveAdSet, updateAdSet, deleteAdSet } from "@/lib/ad-storage";
+import { AdSetMetadata, SavedAdSet, getSavedAdSets, saveAdSet, updateAdSet, deleteAdSet } from "@/lib/ad-storage";
 import {
   isSharedFolderSupported,
   pickDirectory,
@@ -12,14 +12,18 @@ import {
   clearDirectoryHandle,
   verifyPermission,
   saveAdSetToFolder,
-  loadAdSetsFromFolder,
+  listAdSetsMetadata,
+  readAdSet,
   deleteAdSetFromFolder,
+  compactFolder,
 } from "@/lib/shared-folder-storage";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
 import { InContextPreview } from "@/components/in-context-preview";
 import { AdPickerModal, UnsavedChangesDialog, ConfirmDeleteDialog } from "@/components/ad-picker-modal";
+import { VersionWatcher } from "@/components/version-watcher";
+import { APP_VERSION } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -90,7 +94,15 @@ const INITIAL_CONFIG_MAP: ConfigMap = Object.fromEntries(
 export default function AdCreatorPage() {
   const [configMap, setConfigMap] = useState<ConfigMap>(INITIAL_CONFIG_MAP);
   const [savedAdSets, setSavedAdSets] = useState<SavedAdSet[]>([]);
-  const [sharedAdSets, setSharedAdSets] = useState<SavedAdSet[]>([]);
+  // Lightweight metadata only — the heavy configMap for a shared set is fetched
+  // on demand when it's opened, so listing never downloads image data.
+  const [sharedAdSets, setSharedAdSets] = useState<AdSetMetadata[]>([]);
+  const [sharedListLoaded, setSharedListLoaded] = useState(false);
+  const [sharedListLoading, setSharedListLoading] = useState(false);
+  const [isOpeningSet, setIsOpeningSet] = useState(false);
+  const [isCompacting, setIsCompacting] = useState(false);
+  const [compactProgress, setCompactProgress] = useState<{ done: number; total: number } | null>(null);
+  const [compactNote, setCompactNote] = useState<string | null>(null);
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   // null = support not yet determined (avoids hydration flash); true/false once known.
   const [sharedSupported, setSharedSupported] = useState<boolean | null>(null);
@@ -152,16 +164,61 @@ export default function AdCreatorPage() {
     getSavedAdSets().then(setSavedAdSets);
   }, []);
 
-  const refreshSharedAdSets = useCallback(async (handle: FileSystemDirectoryHandle) => {
+  // Loads the shared-set list as metadata only (no image data). Called lazily
+  // when the picker opens or right after connecting — never on mount — so a
+  // Google Drive "Stream" folder is not swept on page load.
+  const loadSharedList = useCallback(async (handle: FileSystemDirectoryHandle) => {
+    setSharedListLoading(true);
     try {
-      setSharedAdSets(await loadAdSetsFromFolder(handle));
+      setSharedAdSets(await listAdSetsMetadata(handle));
+      setSharedListLoaded(true);
     } catch (err) {
       console.error("Failed to load ad sets from folder", err);
       setFolderMessage("Failed to load ad sets from the shared folder.");
+    } finally {
+      setSharedListLoading(false);
     }
   }, []);
 
+  // Keeps the in-memory list in sync after a save without re-reading the folder.
+  const upsertSharedMeta = useCallback((set: SavedAdSet) => {
+    const meta: AdSetMetadata = {
+      id: set.id,
+      name: set.name,
+      createdAt: set.createdAt,
+      updatedAt: set.updatedAt,
+    };
+    setSharedAdSets((prev) => [meta, ...prev.filter((s) => s.id !== meta.id)]);
+  }, []);
+
+  // One-time migration: rewrite every set so its images move into assets/ and
+  // its JSON shrinks. After this, listing the folder no longer downloads image
+  // data. Best run from a machine on Drive "Mirror" mode.
+  const handleCompactFolder = useCallback(async () => {
+    if (!dirHandle || isCompacting) return;
+    setIsCompacting(true);
+    setCompactProgress({ done: 0, total: 0 });
+    setCompactNote(null);
+    setFolderMessage(null);
+    try {
+      const { migrated, failed } = await compactFolder(dirHandle, setCompactProgress);
+      await loadSharedList(dirHandle);
+      setCompactNote(
+        `Optimized ${migrated} ad set${migrated === 1 ? "" : "s"} for faster loading` +
+          (failed ? ` (${failed} could not be processed).` : ".")
+      );
+    } catch (err) {
+      console.error("Failed to optimize shared folder", err);
+      setFolderMessage("Could not optimize the shared folder.");
+    } finally {
+      setIsCompacting(false);
+      setCompactProgress(null);
+    }
+  }, [dirHandle, isCompacting, loadSharedList]);
+
   // Reconnect a previously chosen shared folder on mount, if permission persists.
+  // Deliberately does NOT load the list here — that would re-introduce the
+  // folder-read-on-load that freezes machines syncing via Drive "Stream" mode.
   useEffect(() => {
     if (!isSharedFolderSupported()) {
       setSharedSupported(false);
@@ -173,13 +230,11 @@ export default function AdCreatorPage() {
       if (!handle) return;
       setDirHandle(handle);
       // No user gesture on load, so this only succeeds if permission still holds.
-      if (await verifyPermission(handle)) {
-        await refreshSharedAdSets(handle);
-      } else {
+      if (!(await verifyPermission(handle))) {
         setNeedsReconnect(true);
       }
     })();
-  }, [refreshSharedAdSets]);
+  }, []);
 
   const handleConnectFolder = useCallback(async () => {
     try {
@@ -192,13 +247,13 @@ export default function AdCreatorPage() {
       setDirHandle(handle);
       setNeedsReconnect(false);
       setFolderMessage(null);
-      await refreshSharedAdSets(handle);
+      await loadSharedList(handle);
     } catch (err) {
       if ((err as DOMException)?.name === "AbortError") return; // user cancelled the picker
       console.error("Failed to connect shared folder", err);
       setFolderMessage("Could not connect the folder.");
     }
-  }, [refreshSharedAdSets]);
+  }, [loadSharedList]);
 
   const handleDisconnectFolder = useCallback(async () => {
     await clearDirectoryHandle();
@@ -251,13 +306,13 @@ export default function AdCreatorPage() {
     if (dirHandle) {
       try {
         await saveAdSetToFolder(dirHandle, newSet);
-        await refreshSharedAdSets(dirHandle);
+        upsertSharedMeta(newSet);
       } catch (err) {
         console.error("Failed to write ad set to shared folder", err);
         setFolderMessage("Saved locally, but writing to the shared folder failed.");
       }
     }
-  }, [configMap, formConfig.funeralHomeName, dirHandle, refreshSharedAdSets]);
+  }, [configMap, formConfig.funeralHomeName, dirHandle, upsertSharedMeta]);
 
   const handleUpdateAdSet = useCallback(async () => {
     if (!currentAdSetId) return;
@@ -282,13 +337,13 @@ export default function AdCreatorPage() {
           };
       try {
         await saveAdSetToFolder(dirHandle, updated);
-        await refreshSharedAdSets(dirHandle);
+        upsertSharedMeta(updated);
       } catch (err) {
         console.error("Failed to write ad set to shared folder", err);
         setFolderMessage("Updated locally, but writing to the shared folder failed.");
       }
     }
-  }, [configMap, currentAdSetId, dirHandle, sharedAdSets, formConfig.funeralHomeName, refreshSharedAdSets]);
+  }, [configMap, currentAdSetId, dirHandle, sharedAdSets, formConfig.funeralHomeName, upsertSharedMeta]);
 
   // The combined save action surfaced in the Current Ad card: update the loaded
   // set, or create a new one if nothing is loaded yet.
@@ -299,8 +354,21 @@ export default function AdCreatorPage() {
 
   // Plain (non-memoized) helpers: only called from modal callbacks, so they read
   // the latest state at call time without dependency-array bookkeeping.
-  const doLoadAdSet = (id: string) => {
-    const set = savedAdSets.find((s) => s.id === id) ?? sharedAdSets.find((s) => s.id === id);
+  const doLoadAdSet = async (id: string) => {
+    // Local sets carry their configMap in memory; shared sets are metadata-only
+    // until opened, so fetch the one file (and its images) on demand here.
+    let set: SavedAdSet | null = savedAdSets.find((s) => s.id === id) ?? null;
+    if (!set && dirHandle) {
+      setIsOpeningSet(true);
+      try {
+        set = await readAdSet(dirHandle, id);
+      } catch (err) {
+        console.error("Failed to open shared ad set", err);
+        setFolderMessage("Could not open that ad set from the shared folder.");
+      } finally {
+        setIsOpeningSet(false);
+      }
+    }
     if (!set) return;
     const clone: ConfigMap = JSON.parse(JSON.stringify(set.configMap));
     setConfigMap(clone);
@@ -328,6 +396,15 @@ export default function AdCreatorPage() {
   const requestNewAdSet = () => {
     if (isDirty) setPendingAction({ type: "new" });
     else doNewAdSet();
+  };
+
+  // Opening the picker is the trigger to load the shared list — lazily, and only
+  // once per connection — so the folder is read on user intent, not on mount.
+  const openPicker = () => {
+    setShowPicker(true);
+    if (dirHandle && !needsReconnect && !sharedListLoaded && !sharedListLoading) {
+      loadSharedList(dirHandle);
+    }
   };
 
   const runPendingAction = () => {
@@ -368,24 +445,26 @@ export default function AdCreatorPage() {
       if (dirHandle) {
         try {
           await deleteAdSetFromFolder(dirHandle, id);
-          await refreshSharedAdSets(dirHandle);
+          setSharedAdSets((prev) => prev.filter((s) => s.id !== id));
         } catch (err) {
           console.error("Failed to delete ad set from shared folder", err);
           setFolderMessage("Deleted locally, but removing from the shared folder failed.");
         }
       }
     },
-    [currentAdSetId, dirHandle, refreshSharedAdSets]
+    [currentAdSetId, dirHandle]
   );
 
   return (
     <div className="min-h-screen bg-background">
+      <VersionWatcher />
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-bold text-foreground tracking-tight">Ad Creator</h1>
             <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+            <span className="text-[10px] text-muted-foreground font-mono">v{APP_VERSION}</span>
           </div>
           <div className="flex items-center gap-3">
             <select
@@ -440,7 +519,7 @@ export default function AdCreatorPage() {
                   <span className="text-sm font-medium truncate">{currentName}</span>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowPicker(true)}>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={openPicker}>
                     <FolderOpen className="size-3.5 mr-1.5" /> Open ad
                   </Button>
                   <Button size="sm" className="flex-1" onClick={handleSaveCurrent}>
@@ -474,19 +553,38 @@ export default function AdCreatorPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Cloud className="size-3.5 text-primary flex-shrink-0" />
-                          <span className="text-xs font-medium truncate">{dirHandle.name}</span>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Cloud className="size-3.5 text-primary flex-shrink-0" />
+                            <span className="text-xs font-medium truncate">{dirHandle.name}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] h-6 px-1.5 flex-shrink-0"
+                            onClick={handleDisconnectFolder}
+                            disabled={isCompacting}
+                          >
+                            Disconnect
+                          </Button>
                         </div>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          className="text-[10px] h-6 px-1.5 flex-shrink-0"
-                          onClick={handleDisconnectFolder}
+                          className="w-full text-[11px] h-7"
+                          onClick={handleCompactFolder}
+                          disabled={isCompacting}
+                          title="Rewrites every saved ad so images load faster. Safe to re-run."
                         >
-                          Disconnect
+                          <RefreshCw className={`size-3 mr-1.5 ${isCompacting ? "animate-spin" : ""}`} />
+                          {isCompacting
+                            ? compactProgress && compactProgress.total > 0
+                              ? `Optimizing ${compactProgress.done}/${compactProgress.total}…`
+                              : "Optimizing…"
+                            : "Optimize for faster loading"}
                         </Button>
+                        {compactNote && <p className="text-[11px] text-muted-foreground">{compactNote}</p>}
                       </div>
                     )
                   ) : (
@@ -549,12 +647,22 @@ export default function AdCreatorPage() {
         <AdPickerModal
           localSets={savedAdSets}
           sharedSets={sharedAdSets}
+          sharedLoading={sharedListLoading}
           currentId={currentAdSetId}
           onSelect={requestLoadAdSet}
           onNew={requestNewAdSet}
           onDelete={requestDeleteAdSet}
           onClose={() => setShowPicker(false)}
         />
+      )}
+
+      {/* Opening a shared set (fetching its file + images from the folder) */}
+      {isOpeningSet && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40">
+          <div className="bg-card rounded-lg px-4 py-3 text-sm shadow-xl ring-1 ring-border/50">
+            Opening ad…
+          </div>
+        </div>
       )}
 
       {/* Unsaved-changes guard */}

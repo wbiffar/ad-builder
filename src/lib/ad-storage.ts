@@ -8,6 +8,13 @@ export type SavedAdSet = {
   configMap: Record<string, AdConfig>;
 };
 
+/**
+ * The lightweight fields needed to list an ad set without loading its (heavy)
+ * configMap. Used for the shared-folder picker so listing never pulls image
+ * data — only opening a specific set does.
+ */
+export type AdSetMetadata = Pick<SavedAdSet, "id" | "name" | "createdAt" | "updatedAt">;
+
 const DB_NAME = "legacy-ad-creator";
 const DB_VERSION = 2;
 const STORE_NAME = "saved-ads";

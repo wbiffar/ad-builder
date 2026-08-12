@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { SavedAdSet } from "@/lib/ad-storage";
+import { AdSetMetadata } from "@/lib/ad-storage";
 import { Button } from "@/components/ui/button";
 import { Cloud, HardDrive, Plus, Search, Trash2, X } from "lucide-react";
 
@@ -16,7 +16,7 @@ function AdRow({
   onSelect,
   onDelete,
 }: {
-  set: SavedAdSet;
+  set: AdSetMetadata;
   shared: boolean;
   isCurrent: boolean;
   onSelect: () => void;
@@ -66,8 +66,9 @@ function AdRow({
 }
 
 export type AdPickerModalProps = {
-  localSets: SavedAdSet[];
-  sharedSets: SavedAdSet[];
+  localSets: AdSetMetadata[];
+  sharedSets: AdSetMetadata[];
+  sharedLoading?: boolean;
   currentId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -78,6 +79,7 @@ export type AdPickerModalProps = {
 export function AdPickerModal({
   localSets,
   sharedSets,
+  sharedLoading = false,
   currentId,
   onSelect,
   onNew,
@@ -101,8 +103,8 @@ export function AdPickerModal({
   const { shared, local } = useMemo(() => {
     const sharedIds = new Set(sharedSets.map((s) => s.id));
     const q = query.trim().toLowerCase();
-    const match = (s: SavedAdSet) => !q || s.name.toLowerCase().includes(q);
-    const byUpdated = (a: SavedAdSet, b: SavedAdSet) =>
+    const match = (s: AdSetMetadata) => !q || s.name.toLowerCase().includes(q);
+    const byUpdated = (a: AdSetMetadata, b: AdSetMetadata) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     return {
       shared: sharedSets.filter(match).sort(byUpdated),
@@ -195,7 +197,13 @@ export function AdPickerModal({
             </div>
           )}
 
-          {isEmpty && (
+          {sharedLoading && shared.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground py-4">
+              Loading shared folder…
+            </p>
+          )}
+
+          {isEmpty && !sharedLoading && (
             <p className="text-center text-xs text-muted-foreground py-8">
               {query ? "No ads match your search." : "No saved ads yet."}
             </p>
