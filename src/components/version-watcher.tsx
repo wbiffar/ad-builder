@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { BUILD_ID } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
@@ -17,28 +17,31 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000;
 export function VersionWatcher() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
-  const check = useCallback(async () => {
-    if (BUILD_ID === "dev" || updateAvailable) return;
-    try {
-      const res = await fetch("/api/version", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { buildId?: string };
-      if (data.buildId && data.buildId !== BUILD_ID) setUpdateAvailable(true);
-    } catch {
-      // Offline or transient network error — ignore and try again next tick.
-    }
-  }, [updateAvailable]);
-
   useEffect(() => {
+    if (BUILD_ID === "dev") return; // never prompt in local dev
+    let active = true;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { buildId?: string };
+        if (active && data.buildId && data.buildId !== BUILD_ID) {
+          setUpdateAvailable(true);
+        }
+      } catch {
+        // Offline or transient network error — ignore and try again next tick.
+      }
+    };
     check();
     const onFocus = () => check();
     window.addEventListener("focus", onFocus);
     const timer = window.setInterval(check, POLL_INTERVAL_MS);
     return () => {
+      active = false;
       window.removeEventListener("focus", onFocus);
       window.clearInterval(timer);
     };
-  }, [check]);
+  }, []);
 
   if (!updateAvailable) return null;
 
