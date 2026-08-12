@@ -193,6 +193,49 @@ export async function readAdSet(handle: FileSystemDirectoryHandle, id: string): 
   }
 }
 
+export type CompactProgress = { done: number; total: number };
+export type CompactResult = { migrated: number; failed: number };
+
+/**
+ * Rewrites every ad set in the folder through the current save path: reads each
+ * set (hydrating its images) and saves it back, which externalizes any inline
+ * images into assets/ and shrinks the JSON. This is a one-time migration for
+ * folders created before image externalization — once compacted, listing the
+ * folder no longer downloads image data. Re-running it is safe: already-external
+ * sets simply re-write identical (content-hashed) assets, which are skipped.
+ *
+ * Names, ids, and timestamps are preserved. Runs serially and deliberately — it
+ * is a heavy operation best triggered from a machine whose Drive copy is local
+ * (Mirror mode) so the affected user never sweeps the old files.
+ */
+export async function compactFolder(
+  handle: FileSystemDirectoryHandle,
+  onProgress?: (p: CompactProgress) => void
+): Promise<CompactResult> {
+  if (!(await verifyPermission(handle))) {
+    throw new Error("Write permission for the shared folder was denied.");
+  }
+  const metas = await listAdSetsMetadata(handle);
+  let migrated = 0;
+  let failed = 0;
+  for (let i = 0; i < metas.length; i++) {
+    try {
+      const set = await readAdSet(handle, metas[i].id);
+      if (set) {
+        await saveAdSetToFolder(handle, set);
+        migrated++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      console.error(`Failed to compact ad set ${metas[i].id}`, err);
+      failed++;
+    }
+    onProgress?.({ done: i + 1, total: metas.length });
+  }
+  return { migrated, failed };
+}
+
 export async function deleteAdSetFromFolder(handle: FileSystemDirectoryHandle, id: string): Promise<void> {
   if (!(await verifyPermission(handle))) {
     throw new Error("Write permission for the shared folder was denied.");
