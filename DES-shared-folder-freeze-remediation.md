@@ -1,6 +1,8 @@
 # Shared-Folder Freeze — Root Cause & Remediation Scope
 
-**Status:** In progress · Phase 1 implemented on branch `feature/des-shared-folder-lazy-load-assets`
+**Status:** Phases 1–2 (freeze fix) + Phase 4 (optimize) + Phase 5 (version prompt)
+implemented on branch `feature/des-shared-folder-lazy-load-assets`; Phase 3 manual
+verification pending. See "Rollout sequence" before optimizing production.
 **Jira:** Epic + stories drafted below (IDs TBD — see "Jira backlog")
 **Date:** 2026-08-12
 
@@ -118,6 +120,50 @@ and an app smoke test (picker opens, empty state correct, no runtime errors).
   metadata; opening a set fetches only its assets.
 - Follow-up (not in this effort): orphaned-asset garbage collection on delete
   (deferred — dedup makes eager deletion unsafe).
+
+### Phase 4 — "Optimize for faster loading" (one-time migration)  ✅ implemented
+Old folders still hold pre-externalization files that inline base64 images, so
+listing them still downloads image bytes even on the new build. `compactFolder()`
+reads each set and re-saves it (moving images into `assets/`, shrinking the
+JSON); ids/names/timestamps preserved; idempotent and safe to re-run. Surfaced
+as a sidebar button with live progress. Best run from a **Mirror**-mode machine
+so the affected user never sweeps the old files.
+
+### Phase 5 — Version indicator + refresh prompt  ✅ implemented
+Because this is a hosted web app, a migrated (new-format) file shows broken
+images to anyone still on an **old build**. To make build state visible and
+actionable: a per-deployment build id (Vercel commit sha) is injected via
+`next.config` `env`; a dynamic `/api/version` route reports the deployed id; a
+client `VersionWatcher` compares it to the tab's loaded id and shows a "new
+version available — Refresh" prompt on mismatch (polls on mount, focus, and
+every 5 min). The header shows `APP_VERSION`. No-ops in local dev.
+
+## Rollout sequence
+
+The one hard rule: a file is only rewritten to the new format when someone on the
+**new build** saves or optimizes it, and **old builds cannot render images from
+new-format files** (data is intact; images reappear on refresh to the new build).
+So order matters:
+
+1. **Merge + deploy the new build to production first.** The Optimize button only
+   exists in the new build, and everyone must be able to *reach* the new build
+   before any file is migrated. Never optimize from a local/preview build against
+   the real folder while production is still the old build — that would break
+   images for all current production users.
+2. **Nudge active users onto the new build.** After deploy, open tabs get the
+   refresh prompt (within ~5 min or on focus); they click Refresh. New/returning
+   visitors load it fresh automatically.
+3. **Run "Optimize for faster loading" once**, ideally from a **Mirror**-mode
+   machine, during a quiet window. Partial failures are safe — unmigrated sets
+   stay old-format (still readable by everyone) and can be re-optimized later.
+4. **Interim mitigation** for the affected user until she's confirmed on the new
+   build: Drive for Desktop → **Mirror**, or mark the folder **Available offline**.
+
+**Users on vacation are not a concern.** They have nothing loaded now, so when
+they return they load the new build fresh and read new-format files correctly.
+The only exposure is a user with an *old tab actively open at optimize time* who
+views a migrated set before refreshing — a momentary broken image, fixed by the
+refresh prompt, with no data loss.
 
 ## Risks
 
