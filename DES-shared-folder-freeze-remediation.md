@@ -93,13 +93,23 @@ destructive migration.
 Validated: `tsc --noEmit` clean; base64 round-trip is byte-exact; hashing is
 deterministic (dedup) and change-sensitive.
 
-### Phase 2 — Lazy load (the freeze fix)  ⏳ next
-- Split shared-folder API into `listAdSetsMetadata` (enumerate, **no content
-  reads**) and `readAdSet(id)` (one file + its assets).
-- `page.tsx`: stop loading on mount; load the list when the picker opens;
-  hydrate a set's assets only in `doLoadAdSet`; replace post-save/update/delete
-  full re-reads with **incremental** in-memory updates.
-- `ad-picker-modal.tsx`: loading/progress state while the list resolves.
+### Phase 2 — Lazy load (the freeze fix)  ✅ implemented
+- `shared-folder-storage.ts`: replaced `loadAdSetsFromFolder` with
+  `listAdSetsMetadata` (enumerate, **no asset reads**) and `readAdSet(id)`
+  (one file + only its assets).
+- `ad-storage.ts`: added `AdSetMetadata` type.
+- `page.tsx`: mount reconnects the handle but no longer loads the folder; the
+  list loads lazily on picker-open (`openPicker`) and right after connecting;
+  `doLoadAdSet` fetches a shared set on demand via `readAdSet`; save/update/
+  delete now update the in-memory list **incrementally** (`upsertSharedMeta` /
+  filter) instead of re-reading the folder. Added an "Opening ad…" indicator.
+- `ad-picker-modal.tsx`: switched to `AdSetMetadata`; added a `sharedLoading`
+  state.
+
+Result: mount performs **zero** folder reads; listing reads only small JSON
+metadata (never the `assets/` bytes); opening one set reads only that set.
+Validated: `tsc --noEmit` clean, `eslint` (0 errors), `next build` succeeds,
+and an app smoke test (picker opens, empty state correct, no runtime errors).
 
 ### Phase 3 — Verification & hardening  ⏳
 - Confirm `html-to-image` export still works with hydrated data URLs (expected —

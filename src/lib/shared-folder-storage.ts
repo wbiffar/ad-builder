@@ -1,5 +1,5 @@
 import { AdConfig, PersistedAdConfig, PersistedSavedAdSet } from "./types";
-import { SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
+import { AdSetMetadata, SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
 import { serializeConfig, hydrateConfig } from "./asset-store";
 
 // --- Minimal File System Access API typings ---
@@ -118,8 +118,16 @@ export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet
   }
 }
 
-export async function loadAdSetsFromFolder(handle: FileSystemDirectoryHandle): Promise<SavedAdSet[]> {
-  const results: SavedAdSet[] = [];
+/**
+ * Lists the ad sets in the folder as lightweight metadata — WITHOUT resolving
+ * any image assets. This is the key to avoiding the Drive "Stream" freeze: the
+ * assets/ subdirectory is never touched, so listing (even of many sets) never
+ * downloads image bytes. Image data is fetched only when a set is opened via
+ * readAdSet. Legacy files that still inline data URLs are read whole here (their
+ * JSON carries the images), but shrink to metadata-only reads once re-saved.
+ */
+export async function listAdSetsMetadata(handle: FileSystemDirectoryHandle): Promise<AdSetMetadata[]> {
+  const results: AdSetMetadata[] = [];
   const iterable = handle as unknown as IterableDirectoryHandle;
   for await (const entry of iterable.values()) {
     if (entry.kind !== "file" || !entry.name.endsWith(".json")) continue;
@@ -130,19 +138,11 @@ export async function loadAdSetsFromFolder(handle: FileSystemDirectoryHandle): P
         console.warn(`Skipping malformed ad set file: ${entry.name}`);
         continue;
       }
-      // Resolve asset references back to data URLs, then fill in any missing
-      // fields. Legacy files with inline data URLs pass through hydrate as-is.
-      const configMap: Record<string, AdConfig> = {};
-      for (const [size, cfg] of Object.entries(parsed.configMap)) {
-        const hydrated = await hydrateConfig(handle, (cfg ?? {}) as PersistedAdConfig);
-        configMap[size] = migrateAdConfig(hydrated);
-      }
       results.push({
         id: parsed.id,
         name: parsed.name ?? "Untitled Ad Set",
         createdAt: parsed.createdAt ?? new Date().toISOString(),
         updatedAt: parsed.updatedAt ?? new Date().toISOString(),
-        configMap,
       });
     } catch (err) {
       console.error(`Failed to parse shared ad set file: ${entry.name}`, err);
@@ -150,6 +150,47 @@ export async function loadAdSetsFromFolder(handle: FileSystemDirectoryHandle): P
   }
   results.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   return results;
+}
+
+/**
+ * Reads a single ad set by id and hydrates its image assets into data URLs.
+ * Only the one requested file and its assets are read, so opening a set costs
+ * exactly that set's data — not the whole folder. Returns null if the file is
+ * missing or malformed.
+ */
+export async function readAdSet(handle: FileSystemDirectoryHandle, id: string): Promise<SavedAdSet | null> {
+  let file: File;
+  try {
+    const fileHandle = await handle.getFileHandle(fileNameFor(id));
+    file = await fileHandle.getFile();
+  } catch (err) {
+    if ((err as DOMException)?.name === "NotFoundError") return null;
+    throw err;
+  }
+  try {
+    const parsed = JSON.parse(await file.text()) as Partial<PersistedSavedAdSet>;
+    if (!parsed.id || !parsed.configMap) {
+      console.warn(`Skipping malformed ad set file: ${fileNameFor(id)}`);
+      return null;
+    }
+    // Resolve asset references back to data URLs, then fill in any missing
+    // fields. Legacy files with inline data URLs pass through hydrate as-is.
+    const configMap: Record<string, AdConfig> = {};
+    for (const [size, cfg] of Object.entries(parsed.configMap)) {
+      const hydrated = await hydrateConfig(handle, (cfg ?? {}) as PersistedAdConfig);
+      configMap[size] = migrateAdConfig(hydrated);
+    }
+    return {
+      id: parsed.id,
+      name: parsed.name ?? "Untitled Ad Set",
+      createdAt: parsed.createdAt ?? new Date().toISOString(),
+      updatedAt: parsed.updatedAt ?? new Date().toISOString(),
+      configMap,
+    };
+  } catch (err) {
+    console.error(`Failed to read shared ad set: ${id}`, err);
+    return null;
+  }
 }
 
 export async function deleteAdSetFromFolder(handle: FileSystemDirectoryHandle, id: string): Promise<void> {
