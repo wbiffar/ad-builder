@@ -15,7 +15,6 @@ import {
   listAdSetsMetadata,
   readAdSet,
   deleteAdSetFromFolder,
-  compactFolder,
 } from "@/lib/shared-folder-storage";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
@@ -100,9 +99,6 @@ export default function AdCreatorPage() {
   const [sharedListLoaded, setSharedListLoaded] = useState(false);
   const [sharedListLoading, setSharedListLoading] = useState(false);
   const [isOpeningSet, setIsOpeningSet] = useState(false);
-  const [isCompacting, setIsCompacting] = useState(false);
-  const [compactProgress, setCompactProgress] = useState<{ done: number; total: number } | null>(null);
-  const [compactNote, setCompactNote] = useState<string | null>(null);
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   // null = support not yet determined (avoids hydration flash); true/false once known.
   const [sharedSupported, setSharedSupported] = useState<boolean | null>(null);
@@ -190,31 +186,6 @@ export default function AdCreatorPage() {
     };
     setSharedAdSets((prev) => [meta, ...prev.filter((s) => s.id !== meta.id)]);
   }, []);
-
-  // One-time migration: rewrite every set so its images move into assets/ and
-  // its JSON shrinks. After this, listing the folder no longer downloads image
-  // data. Best run from a machine on Drive "Mirror" mode.
-  const handleCompactFolder = useCallback(async () => {
-    if (!dirHandle || isCompacting) return;
-    setIsCompacting(true);
-    setCompactProgress({ done: 0, total: 0 });
-    setCompactNote(null);
-    setFolderMessage(null);
-    try {
-      const { migrated, failed } = await compactFolder(dirHandle, setCompactProgress);
-      await loadSharedList(dirHandle);
-      setCompactNote(
-        `Optimized ${migrated} ad set${migrated === 1 ? "" : "s"} for faster loading` +
-          (failed ? ` (${failed} could not be processed).` : ".")
-      );
-    } catch (err) {
-      console.error("Failed to optimize shared folder", err);
-      setFolderMessage("Could not optimize the shared folder.");
-    } finally {
-      setIsCompacting(false);
-      setCompactProgress(null);
-    }
-  }, [dirHandle, isCompacting, loadSharedList]);
 
   // Reconnect a previously chosen shared folder on mount, if permission persists.
   // Deliberately does NOT load the list here — that would re-introduce the
@@ -553,38 +524,19 @@ export default function AdCreatorPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Cloud className="size-3.5 text-primary flex-shrink-0" />
-                            <span className="text-xs font-medium truncate">{dirHandle.name}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-[10px] h-6 px-1.5 flex-shrink-0"
-                            onClick={handleDisconnectFolder}
-                            disabled={isCompacting}
-                          >
-                            Disconnect
-                          </Button>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Cloud className="size-3.5 text-primary flex-shrink-0" />
+                          <span className="text-xs font-medium truncate">{dirHandle.name}</span>
                         </div>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          className="w-full text-[11px] h-7"
-                          onClick={handleCompactFolder}
-                          disabled={isCompacting}
-                          title="Rewrites every saved ad so images load faster. Safe to re-run."
+                          className="text-[10px] h-6 px-1.5 flex-shrink-0"
+                          onClick={handleDisconnectFolder}
                         >
-                          <RefreshCw className={`size-3 mr-1.5 ${isCompacting ? "animate-spin" : ""}`} />
-                          {isCompacting
-                            ? compactProgress && compactProgress.total > 0
-                              ? `Optimizing ${compactProgress.done}/${compactProgress.total}…`
-                              : "Optimizing…"
-                            : "Optimize for faster loading"}
+                          Disconnect
                         </Button>
-                        {compactNote && <p className="text-[11px] text-muted-foreground">{compactNote}</p>}
                       </div>
                     )
                   ) : (
