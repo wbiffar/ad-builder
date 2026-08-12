@@ -22,6 +22,8 @@ import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
 import { InContextPreview } from "@/components/in-context-preview";
 import { AdPickerModal, UnsavedChangesDialog, ConfirmDeleteDialog } from "@/components/ad-picker-modal";
+import { VersionWatcher } from "@/components/version-watcher";
+import { APP_VERSION } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -455,12 +457,14 @@ export default function AdCreatorPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <VersionWatcher />
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-bold text-foreground tracking-tight">Ad Creator</h1>
             <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+            <span className="text-[10px] text-muted-foreground font-mono">v{APP_VERSION}</span>
           </div>
           <div className="flex items-center gap-3">
             <select
