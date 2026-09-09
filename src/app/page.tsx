@@ -128,6 +128,10 @@ export default function AdCreatorPage() {
     ? savedAdSets.find((s) => s.id === currentAdSetId) ?? sharedAdSets.find((s) => s.id === currentAdSetId)
     : null;
   const currentName = currentSet?.name ?? (currentAdSetId ? "Untitled Ad Set" : "Unsaved ad");
+  // Exported filenames are prefixed with the saved project name (DES-2271). An
+  // unsaved project falls back to the funeral home name, which is what the save
+  // flow would title it anyway; with neither, export.ts drops the prefix.
+  const exportProjectName = currentSet?.name ?? formConfig.funeralHomeName ?? "";
 
   const toggleAd = useCallback((name: string) => {
     setSelectedAds((prev) => {
@@ -246,15 +250,14 @@ export default function AdCreatorPage() {
     async (size: AdSize) => {
       const el = adRefs.current.get(size.name);
       if (!el) return;
-      const adConfig = configMap[size.name];
       setIsExporting(true);
       try {
-        await exportAdAsPng(el, size, `${adConfig.funeralHomeName || "ad"}-${size.name}-${size.width}x${size.height}.png`);
+        await exportAdAsPng(el, size, exportProjectName);
       } finally {
         setIsExporting(false);
       }
     },
-    [configMap]
+    [exportProjectName]
   );
 
   const handleExportAll = useCallback(async () => {
@@ -262,11 +265,11 @@ export default function AdCreatorPage() {
     if (selected.length === 0) return;
     setIsExporting(true);
     try {
-      await exportAllAdsAsZip(adRefs.current, selected, formConfig.funeralHomeName || "funeral-home");
+      await exportAllAdsAsZip(adRefs.current, selected, exportProjectName);
     } finally {
       setIsExporting(false);
     }
-  }, [formConfig.funeralHomeName, selectedAds]);
+  }, [exportProjectName, selectedAds]);
 
   const handleSaveAdSet = useCallback(async () => {
     const name = formConfig.funeralHomeName || "Untitled Ad Set";
