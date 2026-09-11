@@ -49,28 +49,47 @@ export function LeaderboardTemplate({
 
   const logoEl = logoUrl ? <LogoImage src={logoUrl} maxWidth={logoMaxW} maxHeight={logoMaxH} whiteContainer={wc} scale={ls} containerPadding={cs} /> : null;
 
-  // --- BUILDING SHOWCASE: photo on left, content on right ---
+  // --- BUILDING SHOWCASE: photo on one side, content on the other ---
+  // The photo side is user-controlled (DES-2273); the logo always stays on the
+  // left of the ad. With the photo on the left it overlays the photo corner as
+  // it always has; flipping the photo right moves the logo into the content
+  // band so it stops covering the photo.
   if (templateStyle === "building-showcase" && additionalImageUrl) {
+    const imageOnRight = (config.imagePlacement ?? "left") === "right";
+
+    const photoPane = (
+      <div key="photo" style={{ width: "35%", height: "100%", overflow: "hidden", flexShrink: 0, position: "relative" }}>
+        <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp }} crossOrigin="anonymous" />
+        {logoUrl && !imageOnRight && (
+          <div style={{ position: "absolute", bottom: 6, left: 6, zIndex: 2 }}>
+            <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer={wc} scale={ls} containerPadding={cs} />
+          </div>
+        )}
+      </div>
+    );
+
+    const accentEl = accentLine.enabled ? (
+      <div key="accent" style={{ width: accentLine.width, height: "100%", backgroundColor: accentLine.color, flexShrink: 0 }} />
+    ) : null;
+
+    const contentPane = (
+      <div key="content" style={{ flex: 1, background: bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px", gap: 12 }}>
+        {imageOnRight && logoEl && <div style={{ flexShrink: 0 }}>{logoEl}</div>}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} fit={taglineFit} {...ts} />
+          <DescriptionText text={config.description} color={textColor} fontSize={descFontSize} style={{ textAlign: "center" }} />
+        </div>
+        <CtaButton text={ctaText} bgColor={colors.accent} fontSize={ctaFontSize} padding="8px 18px" />
+      </div>
+    );
+
+    const panes = imageOnRight
+      ? [contentPane, accentEl, photoPane]
+      : [photoPane, accentEl, contentPane];
+
     return (
       <div ref={adRef} style={{ width, height, position: "relative", overflow: "hidden", display: "flex", fontFamily: "'Inter', 'DM Sans', sans-serif", ...borderStyles }}>
-        <div style={{ width: "35%", height: "100%", overflow: "hidden", flexShrink: 0, position: "relative" }}>
-          <img src={additionalImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: fp }} crossOrigin="anonymous" />
-          {logoUrl && (
-            <div style={{ position: "absolute", bottom: 6, left: 6, zIndex: 2 }}>
-              <LogoImage src={logoUrl} maxWidth={isLarge ? 100 : 80} maxHeight={isLarge ? 40 : 35} whiteContainer={wc} scale={ls} containerPadding={cs} />
-            </div>
-          )}
-        </div>
-        {accentLine.enabled && (
-          <div style={{ width: accentLine.width, height: "100%", backgroundColor: accentLine.color, flexShrink: 0 }} />
-        )}
-        <div style={{ flex: 1, background: bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px", gap: 12 }}>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <TaglineText text={tagline} color={textColor} fontSize={tagFontSize} style={{ textAlign: "center" }} fit={taglineFit} {...ts} />
-            <DescriptionText text={config.description} color={textColor} fontSize={descFontSize} style={{ textAlign: "center" }} />
-          </div>
-          <CtaButton text={ctaText} bgColor={colors.accent} fontSize={ctaFontSize} padding="8px 18px" />
-        </div>
+        {panes}
       </div>
     );
   }
