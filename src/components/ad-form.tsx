@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useState, useRef, useEffect } from "react";
-import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, LogoPlacement, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
+import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, ImagePlacement, LogoPlacement, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
 import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
 import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
 import { fileToDataUrl } from "@/lib/file-utils";
@@ -33,6 +33,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     photoFocusPoint: rawConfig.photoFocusPoint ?? { x: 50, y: 50 },
     taglineStyle: rawConfig.taglineStyle ?? DEFAULT_TAGLINE_STYLE,
     taglineFont: rawConfig.taglineFont ?? "DM Sans",
+    imagePlacement: rawConfig.imagePlacement ?? "left",
   };
 
   const taglineLines = config.tagline.split("\n").length;
@@ -520,6 +521,27 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                   <TabsTrigger value="fade" className="flex-1 text-xs">Fade</TabsTrigger>
                 </TabsList>
               </Tabs>
+            </div>
+          )}
+
+          {/* Photo Placement (DES-2273) — Building Showcase only. Flipping the
+              photo to the right lifts the logo off it, since the logo always
+              stays on the left side of the ad. */}
+          {config.additionalImageUrl && config.templateStyle === "building-showcase" && (
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs">Photo placement</Label>
+              <Tabs
+                value={config.imagePlacement}
+                onValueChange={(v) => update({ imagePlacement: v as ImagePlacement })}
+              >
+                <TabsList className="w-full">
+                  <TabsTrigger value="left" className="flex-1 text-xs">Left</TabsTrigger>
+                  <TabsTrigger value="right" className="flex-1 text-xs">Right</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <p className="text-[10px] text-muted-foreground">
+                Applies to Large Leaderboard (970x90) and Leaderboard (728x90) only. The logo stays on the left.
+              </p>
             </div>
           )}
         </CardContent>

@@ -54,6 +54,16 @@ export type TemplateStyle =
 
 export type PhotoTreatment = "rectangular" | "circular" | "fade";
 
+/**
+ * Which half of the ad the Building Showcase photo occupies (DES-2273). Only
+ * the two horizontal leaderboard sizes (970x90, 728x90) honor this; every other
+ * size ignores it. "left" is the original layout, so existing ads are
+ * unaffected. The logo always stays on the left side of the ad — flipping the
+ * photo right is what lifts the logo off the photo, which is the point of the
+ * control.
+ */
+export type ImagePlacement = "left" | "right";
+
 export type AccentLine = {
   enabled: boolean;
   orientation: "horizontal" | "vertical";
@@ -101,6 +111,7 @@ export type AdConfig = {
   variant: LayoutVariant;
   templateStyle: TemplateStyle;
   photoTreatment: PhotoTreatment;
+  imagePlacement: ImagePlacement;
   additionalImageUrl: string | null;
   photoFocusPoint: PhotoFocusPoint;
   designElements: DesignElements;
@@ -196,6 +207,7 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   variant: "a",
   templateStyle: "clean-minimal",
   photoTreatment: "rectangular",
+  imagePlacement: "left",
   additionalImageUrl: null,
   photoFocusPoint: { x: 50, y: 50 },
   designElements: DEFAULT_DESIGN_ELEMENTS,
