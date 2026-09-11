@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.0 — September 11, 2026
+
+### New Features
+
+- **Photo Placement** — The Building Showcase template gains a Left/Right photo placement control. Moving the photo to the right side lifts the funeral home logo off it — the logo always stays on the left of the ad — so a low-quality or awkwardly cropped partner logo no longer covers the photo the ad is built around. Applies to Large Leaderboard (970x90) and Leaderboard (728x90); every other size is unchanged, and Left is the default, so existing ads render exactly as before
+
 ## v1.4.1 — September 9, 2026
 
 ### Improvements
