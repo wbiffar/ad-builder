@@ -11,9 +11,11 @@ import {
   AccentLineElement,
   getFocusPosition,
   getTaglineStyleProps,
+  getDescriptionStyleProps,
   getGradientCSS,
   getBorderStyles,
   TAGLINE_FIT,
+  DESCRIPTION_FIT,
 } from "./shared";
 import { getContrastColor } from "@/lib/color-utils";
 
@@ -39,6 +41,7 @@ export function MediumRectangle({ config, adRef }: AdTemplateProps) {
   const accentLine = designElements.accentLine;
   const fp = getFocusPosition(photoFocusPoint);
   const ts = getTaglineStyleProps(config.taglineStyle, config.taglineFont);
+  const ds = getDescriptionStyleProps(config.descriptionStyle, config.descriptionFont);
 
   const logoEl = logoUrl ? (
     <div style={{ alignSelf: logoAlign }}>
@@ -56,7 +59,7 @@ export function MediumRectangle({ config, adRef }: AdTemplateProps) {
           {placement === "top" && logoEl}
           <TaglineText text={tagline} color={textColor} fontSize={16} maxWidth={250} fit={TAGLINE_FIT["medium-rectangle"]} {...ts} />
           {placement === "middle" && logoEl}
-          <DescriptionText text={config.description} color={textColor} fontSize={11} maxWidth={240} />
+          <DescriptionText text={config.description} color={textColor} fontSize={11} maxWidth={240} fit={DESCRIPTION_FIT["medium-rectangle"]} {...ds} />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={12} padding="7px 22px" />
           {placement === "bottom" && logoEl}
         </div>
@@ -73,7 +76,7 @@ export function MediumRectangle({ config, adRef }: AdTemplateProps) {
           <PhotoImage src={additionalImageUrl} treatment={photoTreatment} width={photoTreatment === "circular" ? 90 : 160} height={photoTreatment === "circular" ? 90 : 80} fadeColor={colors.background} focusPoint={photoFocusPoint} />
           <TaglineText text={tagline} color={textColor} fontSize={13} maxWidth={240} fit={TAGLINE_FIT["medium-rectangle"]} {...ts} />
           {placement === "middle" && logoEl}
-          <DescriptionText text={config.description} color={textColor} fontSize={10} maxWidth={230} />
+          <DescriptionText text={config.description} color={textColor} fontSize={10} maxWidth={230} fit={DESCRIPTION_FIT["medium-rectangle"]} {...ds} />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={11} padding="6px 18px" />
           {placement === "bottom" && logoEl}
         </div>
@@ -90,7 +93,7 @@ export function MediumRectangle({ config, adRef }: AdTemplateProps) {
           <AccentLineElement accentLine={accentLine} orientation="horizontal" />
           <TaglineText text={tagline} color={textColor} fontSize={19} isScript maxWidth={250} lineHeight={1.35} fit={TAGLINE_FIT["medium-rectangle"]} {...ts} />
           {placement === "middle" && logoEl}
-          <DescriptionText text={config.description} color={textColor} fontSize={11} maxWidth={240} />
+          <DescriptionText text={config.description} color={textColor} fontSize={11} maxWidth={240} fit={DESCRIPTION_FIT["medium-rectangle"]} {...ds} />
           <CtaButton text={ctaText} bgColor={colors.accent} fontSize={13} padding="10px 28px" />
           {placement === "bottom" && logoEl}
         </div>
@@ -105,7 +108,7 @@ export function MediumRectangle({ config, adRef }: AdTemplateProps) {
         {placement === "top" && logoEl}
         <TaglineText text={tagline} color={textColor} fontSize={18} maxWidth={260} fit={TAGLINE_FIT["medium-rectangle"]} {...ts} />
         {placement === "middle" && logoEl}
-        <DescriptionText text={config.description} color={textColor} fontSize={12} maxWidth={250} />
+        <DescriptionText text={config.description} color={textColor} fontSize={12} maxWidth={250} fit={DESCRIPTION_FIT["medium-rectangle"]} {...ds} />
         <CtaButton text={ctaText} bgColor={colors.accent} fontSize={13} padding="10px 28px" />
         {placement === "bottom" && logoEl}
       </div>

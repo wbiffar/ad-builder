@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine, TaglineStyle, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
+import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine, TaglineStyle, DEFAULT_TAGLINE_STYLE, DescriptionStyle, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
 import { getFontFallback } from "@/lib/fonts";
 import { getContrastColor } from "@/lib/color-utils";
 
@@ -19,6 +19,17 @@ export function getTaglineStyleProps(ts?: TaglineStyle, taglineFont?: string) {
     fontSizeScale: s.fontSizeScale,
     paragraphScale: s.paragraphScale,
     fontFamily: taglineFont ? getFontFallback(taglineFont) : undefined,
+  };
+}
+
+/** Returns DescriptionText style override props from a DescriptionStyle config + font. */
+export function getDescriptionStyleProps(ds?: DescriptionStyle, descriptionFont?: string) {
+  const s = ds ?? DEFAULT_DESCRIPTION_STYLE;
+  return {
+    fontWeightOverride: s.fontWeight,
+    fontStyleOverride: s.fontStyle,
+    fontSizeScale: s.fontSizeScale,
+    fontFamily: descriptionFont ? getFontFallback(descriptionFont) : undefined,
   };
 }
 
@@ -286,6 +297,31 @@ export const TAGLINE_FIT: Record<string, TaglineFit> = {
   "large-leaderboard": { maxHeight: 56, minFontSize: 10 },
 };
 
+/**
+ * Vertical budget for the description line, per ad size (DES-2274). This is
+ * what bounds the description size control: the user's chosen size is a target
+ * that {@link FitText} honors only while the copy still fits the budget, so a
+ * larger size can never push the description into a line the fixed-height
+ * layout has no room for.
+ *
+ * The two 90px-tall leaderboards get a strict one-line budget (22px — taller
+ * than one line at the 11-12px base size, shorter than two at any size), which
+ * is the case the ad team hits: on those units a second line collides with the
+ * tagline above it. The 300-wide units have real vertical room, so their budget
+ * allows the two to four lines the description already wraps to today and only
+ * intervenes when a size would overflow the CTA below.
+ *
+ * Every budget clears what today's default styling produces at the longest
+ * supported copy (70 chars), so existing ads measure as fitting and render at
+ * their unchanged base size.
+ */
+export const DESCRIPTION_FIT: Record<string, TaglineFit> = {
+  "half-page": { maxHeight: 100, minFontSize: 11 },
+  "medium-rectangle": { maxHeight: 48, minFontSize: 9 },
+  leaderboard: { maxHeight: 22, minFontSize: 9 },
+  "large-leaderboard": { maxHeight: 22, minFontSize: 9 },
+};
+
 /** Splits tagline copy into paragraphs on blank lines (a double line break). */
 const PARAGRAPH_SPLIT = /\n{2,}/;
 
@@ -347,13 +383,27 @@ function FitText({
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
     if (!fonts?.ready) return;
     let active = true;
-    fonts.ready.then(() => {
+    const bump = () => {
       if (active) setFontNonce((n) => n + 1);
-    });
+    };
+    // `fonts.ready` settles for the faces known when it was read, so on its own
+    // it misses a Google Font stylesheet appended later — which is exactly what
+    // happens when the user picks a font from the dropdown. Ask for the face
+    // being rendered too, so the fit is re-measured against real metrics rather
+    // than the fallback's. Both are best-effort: an unknown family makes
+    // `load` throw on the font shorthand, and the ready-only bump still covers
+    // the common case.
+    let probe: Promise<unknown> = Promise.resolve();
+    try {
+      probe = fonts.load(`${fontStyle} ${fontWeight} 16px ${fontFamily}`);
+    } catch {
+      /* invalid shorthand — fall back to `ready` alone */
+    }
+    Promise.allSettled([fonts.ready, probe]).then(bump);
     return () => {
       active = false;
     };
-  }, []);
+  }, [fontFamily, fontWeight, fontStyle]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -405,7 +455,10 @@ function FitText({
     el.style.overflow = saved.overflow;
     el.style.maxHeight = saved.maxHeight;
 
-    setFitted({ fontSize: Math.round(best * 10) / 10, clamped });
+    // Quantize DOWN, never up: `best` is a size that measured as fitting, and
+    // rounding up can hand back a size that doesn't. At a wrap boundary those
+    // hundredths of a pixel are the difference between three lines and four.
+    setFitted({ fontSize: Math.floor(best * 10) / 10, clamped });
   }, [text, maxFontSize, minFontSize, maxHeight, lineHeight, paragraphScale, multi, fontWeight, fontStyle, fontFamily, maxWidth, fontNonce]);
 
   const clampLines = Math.max(1, Math.floor(maxHeight / (minFontSize * lineHeight)));
@@ -550,8 +603,17 @@ export function TaglineText({
   );
 }
 
+const DESCRIPTION_LINE_HEIGHT = 1.4;
+
 /**
- * Description text — lighter weight, smaller than tagline. Returns null if text is empty.
+ * Description text — lighter weight, smaller than tagline. Returns null if text
+ * is empty.
+ *
+ * Font, weight, slant and size are user-controllable (DES-2274); the supplied
+ * `fontSize` times any `fontSizeScale` is the target/maximum. When a `fit`
+ * budget is given the copy auto-scales to stay inside it (see {@link FitText}),
+ * which is what stops a larger size from wrapping onto a line the template
+ * cannot fit — see {@link DESCRIPTION_FIT}.
  */
 export function DescriptionText({
   text,
@@ -560,6 +622,10 @@ export function DescriptionText({
   maxWidth,
   fontFamily,
   style,
+  fontWeightOverride,
+  fontStyleOverride,
+  fontSizeScale,
+  fit,
 }: {
   text: string;
   color: string;
@@ -567,23 +633,59 @@ export function DescriptionText({
   maxWidth?: number;
   fontFamily?: string;
   style?: React.CSSProperties;
+  fontWeightOverride?: number;
+  fontStyleOverride?: "normal" | "italic";
+  fontSizeScale?: number;
+  fit?: TaglineFit;
 }) {
-  if (!text) return null;
+  // The description is a single paragraph. Literal newlines have always
+  // collapsed to spaces here (the element never set `white-space: pre-line`),
+  // and normalizing them explicitly keeps it that way now that the copy is
+  // measured — a typed line break can't be used to slip past the fit budget.
+  const singleLine = text ? text.replace(/\s+/g, " ").trim() : "";
+  if (!singleLine) return null;
+
+  const resolvedWeight = fontWeightOverride ?? 400;
+  const resolvedStyle = fontStyleOverride ?? "normal";
+  const resolvedFamily = fontFamily ?? "'Inter', 'DM Sans', sans-serif";
+  const maxFontSize = fontSize * (fontSizeScale ?? 1);
+
+  if (fit) {
+    return (
+      <FitText
+        text={singleLine}
+        color={color}
+        maxFontSize={maxFontSize}
+        // Never let the floor exceed the user's chosen size.
+        minFontSize={Math.min(fit.minFontSize, maxFontSize)}
+        maxHeight={fit.maxHeight}
+        lineHeight={DESCRIPTION_LINE_HEIGHT}
+        paragraphScale={1}
+        fontWeight={resolvedWeight}
+        fontStyle={resolvedStyle}
+        fontFamily={resolvedFamily}
+        maxWidth={maxWidth}
+        style={{ opacity: 0.85, ...style }}
+      />
+    );
+  }
+
   return (
     <div
       style={{
         color,
-        fontSize,
-        fontWeight: 400,
-        fontFamily: fontFamily ?? "'Inter', 'DM Sans', sans-serif",
-        lineHeight: 1.4,
+        fontSize: maxFontSize,
+        fontWeight: resolvedWeight,
+        fontFamily: resolvedFamily,
+        fontStyle: resolvedStyle,
+        lineHeight: DESCRIPTION_LINE_HEIGHT,
         maxWidth,
         textAlign: "center",
         opacity: 0.85,
         ...style,
       }}
     >
-      {text}
+      {singleLine}
     </div>
   );
 }

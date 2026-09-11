@@ -39,6 +39,7 @@ export function migrateAdConfig(saved: Partial<AdConfig>): AdConfig {
     },
     logoSettings: { ...DEFAULT_AD_CONFIG.logoSettings, ...(saved.logoSettings ?? {}) },
     taglineStyle: { ...DEFAULT_AD_CONFIG.taglineStyle, ...(saved.taglineStyle ?? {}) },
+    descriptionStyle: { ...DEFAULT_AD_CONFIG.descriptionStyle, ...(saved.descriptionStyle ?? {}) },
   };
 }
 
