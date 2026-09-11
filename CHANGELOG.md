@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.0 — September 11, 2026
+
+### New Features
+
+- **Description Font & Size** — The description field gains the same controls the tagline already had: a font picker, bold and italic toggles, and a size slider. The description used to render too small to read comfortably on the banner units with no way to correct it short of rewriting the copy shorter, which the ad team was already doing heavily for the leaderboards. Settings are per ad size like everything else in the form, so deselecting a size lets you treat it on its own — a size that works on the 300x600 doesn't force the same treatment on the leaderboard
+
+  Raising the size can't break a layout. Each template carries a height budget for the description, and the copy scales down to stay inside it rather than spilling over: on Large Leaderboard (970x90) and Leaderboard (728x90) that budget is a single line, so the description grows to roughly 16px and holds there instead of wrapping into the tagline. The 70-character limit is unchanged, and so is the default styling — existing ads render exactly as before
+
+### Improvements
+
+- **Auto-Fit Accuracy** — Copy that auto-scales to fit a template (taglines, and now descriptions) is no longer rounded up to the next tenth of a pixel after the fitting measurement. Rounding up could hand back a size fractionally larger than the one that was measured as fitting, which at a wrap boundary was the difference between three lines and four. Fitted copy can now land up to 0.1px smaller than before — not perceptible, and always on the safe side
+- **Font Metric Re-Measurement** — Auto-fitted copy re-measures once the selected web font actually finishes loading, not just once when the ad first renders. Picking a font mid-session previously left the fit calculated against the fallback font's metrics, which have different widths and could leave copy overflowing its template
+
 ## v1.5.0 — September 11, 2026
 
 ### New Features

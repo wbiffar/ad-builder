@@ -101,6 +101,28 @@ export const DEFAULT_TAGLINE_STYLE: TaglineStyle = {
   paragraphScale: 1,
 };
 
+/**
+ * Font styling for the description line (DES-2274) — the same levers the
+ * tagline exposes, minus paragraph spacing, since the description always
+ * renders as a single paragraph. The defaults reproduce the styling the
+ * description has always had, so existing ads are unaffected.
+ *
+ * `fontSizeScale` is a target, not a guarantee: each template also passes a
+ * DESCRIPTION_FIT budget, which is what keeps a larger size from wrapping the
+ * copy onto a line the fixed-height layouts have no room for.
+ */
+export type DescriptionStyle = {
+  fontWeight: 400 | 600 | 700;
+  fontStyle: "normal" | "italic";
+  fontSizeScale: number; // 0.7–1.5, default 1
+};
+
+export const DEFAULT_DESCRIPTION_STYLE: DescriptionStyle = {
+  fontWeight: 400,
+  fontStyle: "normal",
+  fontSizeScale: 1,
+};
+
 export type AdConfig = {
   funeralHomeName: string;
   logoUrl: string | null;
@@ -119,6 +141,8 @@ export type AdConfig = {
   taglineStyle: TaglineStyle;
   taglineFont: string;
   description: string;
+  descriptionStyle: DescriptionStyle;
+  descriptionFont: string;
 };
 
 export type SavedBrand = {
@@ -221,4 +245,8 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   taglineStyle: DEFAULT_TAGLINE_STYLE,
   taglineFont: "DM Sans",
   description: "",
+  descriptionStyle: DEFAULT_DESCRIPTION_STYLE,
+  // Matches DescriptionText's long-standing hardcoded family, so an ad saved
+  // before this control existed renders identically.
+  descriptionFont: "Inter",
 };
