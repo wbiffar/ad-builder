@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from "react";
 import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, LogoPlacement, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
 import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
 import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
-import { fileToDataUrl } from "@/lib/file-utils";
+import { optimizeUpload } from "@/lib/image-optimize";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const processLogoFile = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) return;
-      const url = await fileToDataUrl(file);
+      const url = await optimizeUpload(file, "logo");
       update({ logoUrl: url });
 
       setIsExtractingColors(true);
@@ -120,7 +120,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const url = await fileToDataUrl(file);
+      const url = await optimizeUpload(file, "photo");
       applyPhoto(url);
     },
     [applyPhoto]
@@ -133,7 +133,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
       setImageDragActive(false);
       const file = e.dataTransfer.files?.[0];
       if (!file || !file.type.startsWith("image/")) return;
-      const url = await fileToDataUrl(file);
+      const url = await optimizeUpload(file, "photo");
       applyPhoto(url);
     },
     [applyPhoto]
@@ -195,7 +195,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                 <div className="text-muted-foreground text-sm">
                   {logoDragActive ? "Drop logo here" : "Drop logo here or click to upload"}
                 </div>
-                <div className="text-muted-foreground text-xs mt-1">PNG, JPG, or SVG</div>
+                <div className="text-muted-foreground text-xs mt-1">PNG, JPG, or SVG · resized to 800px</div>
                 <input
                   ref={logoInputRef}
                   type="file"
@@ -494,7 +494,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                 <div className="text-muted-foreground text-xs">
                   {imageDragActive ? "Drop image here" : "Drop image here or click to upload"}
                 </div>
-                <div className="text-muted-foreground text-[10px] mt-0.5">Building, staff, or scenic photo</div>
+                <div className="text-muted-foreground text-[10px] mt-0.5">PNG or JPG, kept as uploaded · max 1920px</div>
                 <input
                   ref={imageInputRef}
                   type="file"

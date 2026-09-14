@@ -109,18 +109,36 @@ async function writeAsset(handle: FileSystemDirectoryHandle, dataUrl: string): P
   return { assetId, mime, ext };
 }
 
+/** Shared across the five ad sizes in one set so each asset file is read once. */
+export type AssetReadCache = Map<string, Promise<string | null>>;
+
+function assetCacheKey(ref: AssetRef): string {
+  return `${ref.assetId}.${ref.ext}`;
+}
+
 /** Reads an asset back into a data URL for runtime use, or null if missing. */
-async function readAsset(handle: FileSystemDirectoryHandle, ref: AssetRef): Promise<string | null> {
-  const dir = await getAssetsDir(handle, false);
-  if (!dir) return null;
-  try {
-    const fileHandle = await dir.getFileHandle(`${ref.assetId}.${ref.ext}`);
-    const file = await fileHandle.getFile();
-    return bytesToDataUrl(await file.arrayBuffer(), ref.mime);
-  } catch (err) {
-    if ((err as DOMException)?.name === "NotFoundError") return null;
-    throw err;
-  }
+async function readAsset(
+  handle: FileSystemDirectoryHandle,
+  ref: AssetRef,
+  cache?: AssetReadCache
+): Promise<string | null> {
+  const key = assetCacheKey(ref);
+  const hit = cache?.get(key);
+  if (hit) return hit;
+  const pending = (async () => {
+    const dir = await getAssetsDir(handle, false);
+    if (!dir) return null;
+    try {
+      const fileHandle = await dir.getFileHandle(key);
+      const file = await fileHandle.getFile();
+      return bytesToDataUrl(await file.arrayBuffer(), ref.mime);
+    } catch (err) {
+      if ((err as DOMException)?.name === "NotFoundError") return null;
+      throw err;
+    }
+  })();
+  cache?.set(key, pending);
+  return pending;
 }
 
 /** Converts one runtime image field (a data URL, or null) into a persisted form. */
@@ -137,11 +155,12 @@ async function externalize(
 /** Converts one persisted image field back into a runtime data URL, or null. */
 async function internalize(
   handle: FileSystemDirectoryHandle,
-  value: AssetRef | string | null
+  value: AssetRef | string | null,
+  cache?: AssetReadCache
 ): Promise<string | null> {
   if (!value) return null;
   if (typeof value === "string") return value; // legacy inline data URL
-  if (isAssetRef(value)) return readAsset(handle, value);
+  if (isAssetRef(value)) return readAsset(handle, value, cache);
   return null;
 }
 
@@ -168,11 +187,12 @@ export async function serializeConfig(
  */
 export async function hydrateConfig(
   handle: FileSystemDirectoryHandle,
-  persisted: PersistedAdConfig
+  persisted: PersistedAdConfig,
+  cache?: AssetReadCache
 ): Promise<AdConfig> {
   const [logoUrl, additionalImageUrl] = await Promise.all([
-    internalize(handle, persisted.logoUrl),
-    internalize(handle, persisted.additionalImageUrl),
+    internalize(handle, persisted.logoUrl, cache),
+    internalize(handle, persisted.additionalImageUrl, cache),
   ]);
   return { ...persisted, logoUrl, additionalImageUrl };
 }

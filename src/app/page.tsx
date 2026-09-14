@@ -16,6 +16,7 @@ import {
   readAdSet,
   deleteAdSetFromFolder,
 } from "@/lib/shared-folder-storage";
+import { auditSharedFolder, type FolderAudit } from "@/lib/folder-audit";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
@@ -90,6 +91,12 @@ const INITIAL_CONFIG_MAP: ConfigMap = Object.fromEntries(
   AD_SIZES.map((s) => [s.name, DEFAULT_AD_CONFIG])
 );
 
+function formatMb(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 export default function AdCreatorPage() {
   const [configMap, setConfigMap] = useState<ConfigMap>(INITIAL_CONFIG_MAP);
   const [savedAdSets, setSavedAdSets] = useState<SavedAdSet[]>([]);
@@ -104,9 +111,12 @@ export default function AdCreatorPage() {
   const [sharedSupported, setSharedSupported] = useState<boolean | null>(null);
   const [needsReconnect, setNeedsReconnect] = useState(false);
   const [folderMessage, setFolderMessage] = useState<string | null>(null);
+  const [folderAudit, setFolderAudit] = useState<FolderAudit | null>(null);
+  const [auditRunning, setAuditRunning] = useState(false);
   const [currentAdSetId, setCurrentAdSetId] = useState<string | null>(null);
-  // Snapshot of configMap as of the last load/save — used to detect unsaved edits.
-  const [baseline, setBaseline] = useState<string>(() => JSON.stringify(INITIAL_CONFIG_MAP));
+  const [isDirty, setIsDirty] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  const saveNoteTimer = useRef<number | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string; shared: boolean } | null>(null);
@@ -122,8 +132,6 @@ export default function AdCreatorPage() {
   const firstSelected = AD_SIZES.find((s) => selectedAds.has(s.name))?.name ?? AD_SIZES[0].name;
   const formConfig = configMap[firstSelected];
 
-  // Unsaved-changes detection + the label shown in the Current Ad card.
-  const isDirty = JSON.stringify(configMap) !== baseline;
   const currentSet = currentAdSetId
     ? savedAdSets.find((s) => s.id === currentAdSetId) ?? sharedAdSets.find((s) => s.id === currentAdSetId)
     : null;
@@ -148,6 +156,8 @@ export default function AdCreatorPage() {
   // Apply form changes only to selected ads
   const handleConfigChange = useCallback(
     (newConfig: AdConfig) => {
+      setIsDirty(true);
+      setSaveNote(null);
       setConfigMap((prev) => {
         const next = { ...prev };
         for (const name of selectedAds) {
@@ -158,6 +168,19 @@ export default function AdCreatorPage() {
     },
     [selectedAds]
   );
+
+  const markClean = useCallback((note = "Saved") => {
+    setIsDirty(false);
+    setSaveNote(note);
+    if (saveNoteTimer.current) window.clearTimeout(saveNoteTimer.current);
+    saveNoteTimer.current = window.setTimeout(() => setSaveNote(null), 2500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (saveNoteTimer.current) window.clearTimeout(saveNoteTimer.current);
+    };
+  }, []);
 
   // Load saved ad sets on mount
   useEffect(() => {
@@ -172,6 +195,17 @@ export default function AdCreatorPage() {
     try {
       setSharedAdSets(await listAdSetsMetadata(handle));
       setSharedListLoaded(true);
+      try {
+        const report = await auditSharedFolder(handle);
+        setFolderAudit(report);
+        await fetch("/api/folder-audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(report),
+        });
+      } catch (auditErr) {
+        console.error("Folder audit failed", auditErr);
+      }
     } catch (err) {
       console.error("Failed to load ad sets from folder", err);
       setFolderMessage("Failed to load ad sets from the shared folder.");
@@ -234,9 +268,31 @@ export default function AdCreatorPage() {
     await clearDirectoryHandle();
     setDirHandle(null);
     setSharedAdSets([]);
+    setSharedListLoaded(false);
     setNeedsReconnect(false);
     setFolderMessage(null);
+    setFolderAudit(null);
   }, []);
+
+  const handleAuditFolder = useCallback(async () => {
+    if (!dirHandle || auditRunning) return;
+    setAuditRunning(true);
+    setFolderMessage(null);
+    try {
+      const report = await auditSharedFolder(dirHandle);
+      setFolderAudit(report);
+      await fetch("/api/folder-audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(report),
+      });
+    } catch (err) {
+      console.error("Folder audit failed", err);
+      setFolderMessage("Could not audit the shared folder.");
+    } finally {
+      setAuditRunning(false);
+    }
+  }, [dirHandle, auditRunning]);
 
   const setAdRef = useCallback((name: string, el: HTMLDivElement | null) => {
     if (el) {
@@ -275,7 +331,7 @@ export default function AdCreatorPage() {
     const name = formConfig.funeralHomeName || "Untitled Ad Set";
     const newSet = await saveAdSet(name, configMap);
     setCurrentAdSetId(newSet.id);
-    setBaseline(JSON.stringify(configMap));
+    markClean();
     setSavedAdSets(await getSavedAdSets());
     if (dirHandle) {
       try {
@@ -286,13 +342,13 @@ export default function AdCreatorPage() {
         setFolderMessage("Saved locally, but writing to the shared folder failed.");
       }
     }
-  }, [configMap, formConfig.funeralHomeName, dirHandle, upsertSharedMeta]);
+  }, [configMap, formConfig.funeralHomeName, dirHandle, upsertSharedMeta, markClean]);
 
   const handleUpdateAdSet = useCallback(async () => {
     if (!currentAdSetId) return;
     const name = formConfig.funeralHomeName || "Untitled Ad Set";
     await updateAdSet(currentAdSetId, configMap, name);
-    setBaseline(JSON.stringify(configMap));
+    markClean();
     const fresh = await getSavedAdSets();
     setSavedAdSets(fresh);
     if (dirHandle) {
@@ -317,7 +373,7 @@ export default function AdCreatorPage() {
         setFolderMessage("Updated locally, but writing to the shared folder failed.");
       }
     }
-  }, [configMap, currentAdSetId, dirHandle, sharedAdSets, formConfig.funeralHomeName, upsertSharedMeta]);
+  }, [configMap, currentAdSetId, dirHandle, sharedAdSets, formConfig.funeralHomeName, upsertSharedMeta, markClean]);
 
   // The combined save action surfaced in the Current Ad card: update the loaded
   // set, or create a new one if nothing is loaded yet.
@@ -344,17 +400,21 @@ export default function AdCreatorPage() {
       }
     }
     if (!set) return;
-    const clone: ConfigMap = JSON.parse(JSON.stringify(set.configMap));
+    const clone: ConfigMap = Object.fromEntries(
+      Object.entries(set.configMap).map(([key, cfg]) => [key, { ...cfg }])
+    );
     setConfigMap(clone);
     setCurrentAdSetId(set.id);
-    setBaseline(JSON.stringify(clone));
+    setIsDirty(false);
+    setSaveNote(null);
     setShowPicker(false);
   };
 
   const doNewAdSet = () => {
     setConfigMap(INITIAL_CONFIG_MAP);
     setCurrentAdSetId(null);
-    setBaseline(JSON.stringify(INITIAL_CONFIG_MAP));
+    setIsDirty(false);
+    setSaveNote(null);
     setShowPicker(false);
   };
 
@@ -477,11 +537,15 @@ export default function AdCreatorPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-muted-foreground">Current Ad</label>
-                  {isDirty && (
+                  {isDirty ? (
                     <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600">
                       <span className="size-1.5 rounded-full bg-amber-500" /> Unsaved
                     </span>
-                  )}
+                  ) : saveNote ? (
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+                      <Check className="size-3" /> {saveNote}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-1.5 min-w-0">
                   {currentSet &&
@@ -527,19 +591,52 @@ export default function AdCreatorPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Cloud className="size-3.5 text-primary flex-shrink-0" />
-                          <span className="text-xs font-medium truncate">{dirHandle.name}</span>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Cloud className="size-3.5 text-primary flex-shrink-0" />
+                            <span className="text-xs font-medium truncate">{dirHandle.name}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] h-6 px-1.5 flex-shrink-0"
+                            onClick={handleDisconnectFolder}
+                          >
+                            Disconnect
+                          </Button>
                         </div>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          className="text-[10px] h-6 px-1.5 flex-shrink-0"
-                          onClick={handleDisconnectFolder}
+                          className="w-full text-[11px] h-7"
+                          onClick={handleAuditFolder}
+                          disabled={auditRunning}
                         >
-                          Disconnect
+                          {auditRunning ? "Measuring folder…" : "Audit folder I/O"}
                         </Button>
+                        {folderAudit && (
+                          <div className="rounded-md bg-muted/60 p-2 space-y-1 text-[10px] leading-snug">
+                            <p>
+                              <span className="font-semibold">{folderAudit.jsonCount}</span> JSON ·{" "}
+                              <span className="font-semibold">{formatMb(folderAudit.jsonBytes)}</span> listing today
+                            </p>
+                            <p>
+                              Prefix listing: {formatMb(folderAudit.prefixBytes)} (
+                              {folderAudit.listingSavedPct.toFixed(1)}% less · {folderAudit.elapsedMs} ms)
+                            </p>
+                            <p>
+                              Format: {folderAudit.formatCounts.legacy} legacy · {folderAudit.formatCounts.new} new ·{" "}
+                              {folderAudit.formatCounts.corrupt} corrupt
+                            </p>
+                            <p>
+                              Assets: {folderAudit.assetCount} files · {formatMb(folderAudit.assetBytes)}
+                              {folderAudit.resizeSavedBytes > 0
+                                ? ` · cap would drop ${formatMb(folderAudit.resizeSavedBytes)}`
+                                : ""}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )
                   ) : (
