@@ -139,14 +139,25 @@ export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet
 const LIST_PREFIX_BYTES = 8192;
 const SMALL_JSON_FALLBACK_BYTES = 32 * 1024;
 
+function stringFieldFromPrefix(text: string, field: string): string | null {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`"${escapedField}"\\s*:\\s*("(?:\\\\.|[^"\\\\])*")`).exec(text);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]) as string;
+  } catch {
+    return null;
+  }
+}
+
 function metadataFromPrefix(text: string): AdSetMetadata | null {
-  const id = /"id"\s*:\s*"([^"]+)"/.exec(text)?.[1];
+  const id = stringFieldFromPrefix(text, "id");
   if (!id) return null;
   return {
     id,
-    name: /"name"\s*:\s*"([^"]*)"/.exec(text)?.[1] ?? "Untitled Ad Set",
-    createdAt: /"createdAt"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? new Date().toISOString(),
-    updatedAt: /"updatedAt"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? new Date().toISOString(),
+    name: stringFieldFromPrefix(text, "name") ?? "Untitled Ad Set",
+    createdAt: stringFieldFromPrefix(text, "createdAt") ?? new Date().toISOString(),
+    updatedAt: stringFieldFromPrefix(text, "updatedAt") ?? new Date().toISOString(),
   };
 }
 

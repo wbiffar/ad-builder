@@ -4,6 +4,7 @@ export const PHOTO_MAX_EDGE = 1920;
 export const PHOTO_MAX_BYTES = 300 * 1024;
 export const LOGO_MAX_EDGE = 800;
 export const LOGO_MAX_BYTES = 150 * 1024;
+const MIN_RASTER_EDGE = 640;
 
 /**
  * Resize / recompress an upload without changing format.
@@ -53,15 +54,22 @@ function drawToCanvas(source: CanvasImageSource, width: number, height: number):
 }
 
 function shrinkCanvas(current: HTMLCanvasElement, factor: number): HTMLCanvasElement {
-  const width = Math.max(640, Math.round(current.width * factor));
-  const height = Math.max(1, Math.round(current.height * (width / current.width)));
+  const longest = Math.max(current.width, current.height);
+  const nextLongest = Math.max(MIN_RASTER_EDGE, Math.round(longest * factor));
+  const scale = nextLongest / longest;
+  const width = Math.max(1, Math.round(current.width * scale));
+  const height = Math.max(1, Math.round(current.height * scale));
   return drawToCanvas(current, width, height);
+}
+
+function canShrink(current: HTMLCanvasElement): boolean {
+  return Math.max(current.width, current.height) > MIN_RASTER_EDGE;
 }
 
 async function encodePng(canvas: HTMLCanvasElement, maxBytes: number): Promise<string> {
   let current = canvas;
   let blob = await canvasToBlob(current, "image/png");
-  while (blob.size > maxBytes && current.width > 640) {
+  while (blob.size > maxBytes && canShrink(current)) {
     current = shrinkCanvas(current, Math.min(0.85, Math.sqrt(maxBytes / blob.size)));
     blob = await canvasToBlob(current, "image/png");
   }
@@ -76,7 +84,7 @@ async function encodeJpeg(canvas: HTMLCanvasElement, maxBytes: number): Promise<
     quality = Math.max(0.5, quality - 0.08);
     blob = await canvasToBlob(current, "image/jpeg", quality);
   }
-  while (blob.size > maxBytes && current.width > 640) {
+  while (blob.size > maxBytes && canShrink(current)) {
     current = shrinkCanvas(current, Math.min(0.85, Math.sqrt(maxBytes / blob.size)));
     blob = await canvasToBlob(current, "image/jpeg", 0.7);
   }
