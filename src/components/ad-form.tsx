@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useState, useRef, useEffect } from "react";
-import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, LogoPlacement, DEFAULT_TAGLINE_STYLE } from "@/lib/types";
+import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, ImagePlacement, LogoPlacement, DEFAULT_TAGLINE_STYLE, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
 import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
 import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
 import { optimizeUpload } from "@/lib/image-optimize";
@@ -21,6 +21,12 @@ import { BorderPanel, GradientPanel } from "@/components/design-elements/design-
 const MAX_TAGLINE_LINES = 5;
 const MAX_TAGLINE_CHARS = 120;
 
+// Description copy limit. Unlike the tagline the description is always a single
+// line, so this cap is the first half of the no-overflow guarantee (DES-2274);
+// the second half is the per-size DESCRIPTION_FIT budget the templates apply,
+// which shrinks the copy rather than letting a larger size wrap it.
+const MAX_DESCRIPTION_CHARS = 70;
+
 type AdFormProps = {
   config: AdConfig;
   onChange: (config: AdConfig) => void;
@@ -33,6 +39,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     photoFocusPoint: rawConfig.photoFocusPoint ?? { x: 50, y: 50 },
     taglineStyle: rawConfig.taglineStyle ?? DEFAULT_TAGLINE_STYLE,
     taglineFont: rawConfig.taglineFont ?? "DM Sans",
+    descriptionStyle: rawConfig.descriptionStyle ?? DEFAULT_DESCRIPTION_STYLE,
+    descriptionFont: rawConfig.descriptionFont ?? "Inter",
+    imagePlacement: rawConfig.imagePlacement ?? "left",
   };
 
   const taglineLines = config.tagline.split("\n").length;
@@ -41,6 +50,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   // A double line break starts a new paragraph — only then is the spacing control relevant.
   const hasParagraphBreak = /\n{2,}/.test(config.tagline);
   const paragraphScale = config.taglineStyle.paragraphScale ?? 1;
+  const descriptionAtLimit = (config.description ?? "").length >= MAX_DESCRIPTION_CHARS;
 
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
@@ -52,6 +62,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   useEffect(() => {
     if (config.taglineFont) loadGoogleFont(config.taglineFont);
   }, [config.taglineFont]);
+  useEffect(() => {
+    if (config.descriptionFont) loadGoogleFont(config.descriptionFont);
+  }, [config.descriptionFont]);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const update = useCallback(
@@ -390,7 +403,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-sm font-semibold">Description</CardTitle>
-            <span className="text-xs text-muted-foreground">{(config.description ?? "").length}/70</span>
+            <span className={`text-xs ${descriptionAtLimit ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>
+              {(config.description ?? "").length}/{MAX_DESCRIPTION_CHARS}
+            </span>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -398,12 +413,82 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
             id="description"
             value={config.description ?? ""}
             onChange={(e) => {
-              if (e.target.value.length <= 70) update({ description: e.target.value });
+              if (e.target.value.length <= MAX_DESCRIPTION_CHARS) update({ description: e.target.value });
             }}
             placeholder="A brief description or subtitle"
             rows={2}
           />
-          <p className="text-[10px] text-muted-foreground">Not shown on Mobile Leaderboard</p>
+          {/* Description style controls — mirrors the tagline set above (DES-2274) */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                update({
+                  descriptionStyle: {
+                    ...config.descriptionStyle,
+                    fontWeight: config.descriptionStyle.fontWeight === 700 ? 400 : 700,
+                  },
+                })
+              }
+              className={`size-7 rounded border text-xs font-bold flex items-center justify-center transition-colors ${
+                config.descriptionStyle.fontWeight === 700
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-border hover:border-foreground"
+              }`}
+              aria-label="Toggle description bold"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                update({
+                  descriptionStyle: {
+                    ...config.descriptionStyle,
+                    fontStyle: config.descriptionStyle.fontStyle === "italic" ? "normal" : "italic",
+                  },
+                })
+              }
+              className={`size-7 rounded border text-xs italic flex items-center justify-center transition-colors ${
+                config.descriptionStyle.fontStyle === "italic"
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-border hover:border-foreground"
+              }`}
+              aria-label="Toggle description italic"
+            >
+              I
+            </button>
+            <div className="flex-1 flex items-center gap-2">
+              <RangeSlider
+                min={70}
+                max={150}
+                step={5}
+                value={Math.round(config.descriptionStyle.fontSizeScale * 100)}
+                onChange={(v) => update({ descriptionStyle: { ...config.descriptionStyle, fontSizeScale: v / 100 } })}
+              />
+              <span className="text-[10px] text-muted-foreground w-8 text-right">{Math.round(config.descriptionStyle.fontSizeScale * 100)}%</span>
+            </div>
+          </div>
+          {/* Font selector */}
+          <select
+            value={config.descriptionFont}
+            onChange={(e) => update({ descriptionFont: e.target.value })}
+            className="w-full h-8 rounded-md border border-border bg-white px-2 text-xs"
+          >
+            {FONT_OPTIONS.map((f) => (
+              <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-muted-foreground">
+            Not shown on Mobile Leaderboard. Size is capped per ad size so the description never wraps onto a second line on the leaderboards — deselect a size above to style it on its own.
+          </p>
+          {descriptionAtLimit && (
+            <p className="text-[10px] text-amber-600">
+              Maximum copy length reached. On the leaderboards, copy this long is scaled down to stay on one line.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -520,6 +605,27 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                   <TabsTrigger value="fade" className="flex-1 text-xs">Fade</TabsTrigger>
                 </TabsList>
               </Tabs>
+            </div>
+          )}
+
+          {/* Photo Placement (DES-2273) — Building Showcase only. Flipping the
+              photo to the right lifts the logo off it, since the logo always
+              stays on the left side of the ad. */}
+          {config.additionalImageUrl && config.templateStyle === "building-showcase" && (
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs">Photo placement</Label>
+              <Tabs
+                value={config.imagePlacement}
+                onValueChange={(v) => update({ imagePlacement: v as ImagePlacement })}
+              >
+                <TabsList className="w-full">
+                  <TabsTrigger value="left" className="flex-1 text-xs">Left</TabsTrigger>
+                  <TabsTrigger value="right" className="flex-1 text-xs">Right</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <p className="text-[10px] text-muted-foreground">
+                Applies to Large Leaderboard (970x90) and Leaderboard (728x90) only. The logo stays on the left.
+              </p>
             </div>
           )}
         </CardContent>

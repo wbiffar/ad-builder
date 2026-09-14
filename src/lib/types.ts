@@ -54,6 +54,16 @@ export type TemplateStyle =
 
 export type PhotoTreatment = "rectangular" | "circular" | "fade";
 
+/**
+ * Which half of the ad the Building Showcase photo occupies (DES-2273). Only
+ * the two horizontal leaderboard sizes (970x90, 728x90) honor this; every other
+ * size ignores it. "left" is the original layout, so existing ads are
+ * unaffected. The logo always stays on the left side of the ad — flipping the
+ * photo right is what lifts the logo off the photo, which is the point of the
+ * control.
+ */
+export type ImagePlacement = "left" | "right";
+
 export type AccentLine = {
   enabled: boolean;
   orientation: "horizontal" | "vertical";
@@ -91,6 +101,28 @@ export const DEFAULT_TAGLINE_STYLE: TaglineStyle = {
   paragraphScale: 1,
 };
 
+/**
+ * Font styling for the description line (DES-2274) — the same levers the
+ * tagline exposes, minus paragraph spacing, since the description always
+ * renders as a single paragraph. The defaults reproduce the styling the
+ * description has always had, so existing ads are unaffected.
+ *
+ * `fontSizeScale` is a target, not a guarantee: each template also passes a
+ * DESCRIPTION_FIT budget, which is what keeps a larger size from wrapping the
+ * copy onto a line the fixed-height layouts have no room for.
+ */
+export type DescriptionStyle = {
+  fontWeight: 400 | 600 | 700;
+  fontStyle: "normal" | "italic";
+  fontSizeScale: number; // 0.7–1.5, default 1
+};
+
+export const DEFAULT_DESCRIPTION_STYLE: DescriptionStyle = {
+  fontWeight: 400,
+  fontStyle: "normal",
+  fontSizeScale: 1,
+};
+
 export type AdConfig = {
   funeralHomeName: string;
   logoUrl: string | null;
@@ -101,6 +133,7 @@ export type AdConfig = {
   variant: LayoutVariant;
   templateStyle: TemplateStyle;
   photoTreatment: PhotoTreatment;
+  imagePlacement: ImagePlacement;
   additionalImageUrl: string | null;
   photoFocusPoint: PhotoFocusPoint;
   designElements: DesignElements;
@@ -108,6 +141,8 @@ export type AdConfig = {
   taglineStyle: TaglineStyle;
   taglineFont: string;
   description: string;
+  descriptionStyle: DescriptionStyle;
+  descriptionFont: string;
 };
 
 export type SavedBrand = {
@@ -196,6 +231,7 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   variant: "a",
   templateStyle: "clean-minimal",
   photoTreatment: "rectangular",
+  imagePlacement: "left",
   additionalImageUrl: null,
   photoFocusPoint: { x: 50, y: 50 },
   designElements: DEFAULT_DESIGN_ELEMENTS,
@@ -209,4 +245,8 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   taglineStyle: DEFAULT_TAGLINE_STYLE,
   taglineFont: "DM Sans",
   description: "",
+  descriptionStyle: DEFAULT_DESCRIPTION_STYLE,
+  // Matches DescriptionText's long-standing hardcoded family, so an ad saved
+  // before this control existed renders identically.
+  descriptionFont: "Inter",
 };
