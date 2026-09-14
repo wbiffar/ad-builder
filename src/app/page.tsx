@@ -16,7 +16,6 @@ import {
   readAdSet,
   deleteAdSetFromFolder,
 } from "@/lib/shared-folder-storage";
-import { auditSharedFolder, type FolderAudit } from "@/lib/folder-audit";
 import { AdRenderer } from "@/components/ad-canvas";
 import { AdForm } from "@/components/ad-form";
 // Design controls are now integrated into AdForm (Gradient always visible, Labs collapsible)
@@ -91,12 +90,6 @@ const INITIAL_CONFIG_MAP: ConfigMap = Object.fromEntries(
   AD_SIZES.map((s) => [s.name, DEFAULT_AD_CONFIG])
 );
 
-function formatMb(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
 export default function AdCreatorPage() {
   const [configMap, setConfigMap] = useState<ConfigMap>(INITIAL_CONFIG_MAP);
   const [savedAdSets, setSavedAdSets] = useState<SavedAdSet[]>([]);
@@ -111,8 +104,6 @@ export default function AdCreatorPage() {
   const [sharedSupported, setSharedSupported] = useState<boolean | null>(null);
   const [needsReconnect, setNeedsReconnect] = useState(false);
   const [folderMessage, setFolderMessage] = useState<string | null>(null);
-  const [folderAudit, setFolderAudit] = useState<FolderAudit | null>(null);
-  const [auditRunning, setAuditRunning] = useState(false);
   const [currentAdSetId, setCurrentAdSetId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
@@ -195,17 +186,6 @@ export default function AdCreatorPage() {
     try {
       setSharedAdSets(await listAdSetsMetadata(handle));
       setSharedListLoaded(true);
-      try {
-        const report = await auditSharedFolder(handle);
-        setFolderAudit(report);
-        await fetch("/api/folder-audit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(report),
-        });
-      } catch (auditErr) {
-        console.error("Folder audit failed", auditErr);
-      }
     } catch (err) {
       console.error("Failed to load ad sets from folder", err);
       setFolderMessage("Failed to load ad sets from the shared folder.");
@@ -271,28 +251,7 @@ export default function AdCreatorPage() {
     setSharedListLoaded(false);
     setNeedsReconnect(false);
     setFolderMessage(null);
-    setFolderAudit(null);
   }, []);
-
-  const handleAuditFolder = useCallback(async () => {
-    if (!dirHandle || auditRunning) return;
-    setAuditRunning(true);
-    setFolderMessage(null);
-    try {
-      const report = await auditSharedFolder(dirHandle);
-      setFolderAudit(report);
-      await fetch("/api/folder-audit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(report),
-      });
-    } catch (err) {
-      console.error("Folder audit failed", err);
-      setFolderMessage("Could not audit the shared folder.");
-    } finally {
-      setAuditRunning(false);
-    }
-  }, [dirHandle, auditRunning]);
 
   const setAdRef = useCallback((name: string, el: HTMLDivElement | null) => {
     if (el) {
@@ -591,52 +550,19 @@ export default function AdCreatorPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Cloud className="size-3.5 text-primary flex-shrink-0" />
-                            <span className="text-xs font-medium truncate">{dirHandle.name}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-[10px] h-6 px-1.5 flex-shrink-0"
-                            onClick={handleDisconnectFolder}
-                          >
-                            Disconnect
-                          </Button>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Cloud className="size-3.5 text-primary flex-shrink-0" />
+                          <span className="text-xs font-medium truncate">{dirHandle.name}</span>
                         </div>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          className="w-full text-[11px] h-7"
-                          onClick={handleAuditFolder}
-                          disabled={auditRunning}
+                          className="text-[10px] h-6 px-1.5 flex-shrink-0"
+                          onClick={handleDisconnectFolder}
                         >
-                          {auditRunning ? "Measuring folder…" : "Audit folder I/O"}
+                          Disconnect
                         </Button>
-                        {folderAudit && (
-                          <div className="rounded-md bg-muted/60 p-2 space-y-1 text-[10px] leading-snug">
-                            <p>
-                              <span className="font-semibold">{folderAudit.jsonCount}</span> JSON ·{" "}
-                              <span className="font-semibold">{formatMb(folderAudit.jsonBytes)}</span> listing today
-                            </p>
-                            <p>
-                              Prefix listing: {formatMb(folderAudit.prefixBytes)} (
-                              {folderAudit.listingSavedPct.toFixed(1)}% less · {folderAudit.elapsedMs} ms)
-                            </p>
-                            <p>
-                              Format: {folderAudit.formatCounts.legacy} legacy · {folderAudit.formatCounts.new} new ·{" "}
-                              {folderAudit.formatCounts.corrupt} corrupt
-                            </p>
-                            <p>
-                              Assets: {folderAudit.assetCount} files · {formatMb(folderAudit.assetBytes)}
-                              {folderAudit.resizeSavedBytes > 0
-                                ? ` · cap would drop ${formatMb(folderAudit.resizeSavedBytes)}`
-                                : ""}
-                            </p>
-                          </div>
-                        )}
                       </div>
                     )
                   ) : (

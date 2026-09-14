@@ -1,7 +1,6 @@
 import { AdConfig, PersistedAdConfig, PersistedSavedAdSet } from "./types";
 import { AdSetMetadata, SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
 import { serializeConfig, hydrateConfig, type AssetReadCache } from "./asset-store";
-import { metadataFromPrefix } from "./folder-audit";
 
 // --- Minimal File System Access API typings ---
 // These cover the non-standard / not-yet-ubiquitous surface we rely on, so the
@@ -139,6 +138,17 @@ export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet
 
 const LIST_PREFIX_BYTES = 8192;
 const SMALL_JSON_FALLBACK_BYTES = 32 * 1024;
+
+function metadataFromPrefix(text: string): AdSetMetadata | null {
+  const id = /"id"\s*:\s*"([^"]+)"/.exec(text)?.[1];
+  if (!id) return null;
+  return {
+    id,
+    name: /"name"\s*:\s*"([^"]*)"/.exec(text)?.[1] ?? "Untitled Ad Set",
+    createdAt: /"createdAt"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? new Date().toISOString(),
+    updatedAt: /"updatedAt"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? new Date().toISOString(),
+  };
+}
 
 /**
  * Lists ad sets from the first 8KB of each JSON — enough for id/name/timestamps
