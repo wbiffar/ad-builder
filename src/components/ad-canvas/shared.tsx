@@ -3,7 +3,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AdConfig, DesignElements, PhotoTreatment, PhotoFocusPoint, AccentLine, TaglineStyle, DEFAULT_TAGLINE_STYLE, DescriptionStyle, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
 import { getFontFallback } from "@/lib/fonts";
-import { getContrastColor } from "@/lib/color-utils";
+import { getContrastColor, resolveTextColors } from "@/lib/color-utils";
+
+export { resolveTextColors };
 
 /** Returns a CSS object-position value from a focus point. */
 export function getFocusPosition(fp?: PhotoFocusPoint): string {

@@ -3,7 +3,7 @@
 import React, { useCallback, useState, useRef, useEffect } from "react";
 import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, ImagePlacement, LogoPlacement, DEFAULT_TAGLINE_STYLE, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
 import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
-import { extractColorsFromImage, generateBrandPalette } from "@/lib/color-utils";
+import { extractColorsFromImage, generateBrandPalette, resolveTextColors } from "@/lib/color-utils";
 import { optimizeUpload } from "@/lib/image-optimize";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,13 @@ const MAX_TAGLINE_CHARS = 120;
 // the second half is the per-size DESCRIPTION_FIT budget the templates apply,
 // which shrinks the copy rather than letting a larger size wrap it.
 const MAX_DESCRIPTION_CHARS = 70;
+
+/**
+ * The color keys that are a plain hex swatch. Description is excluded because
+ * it is nullable — null means "derive from the Tagline color" (DES-2279) — so
+ * it gets its own control rather than riding the generic swatch grid.
+ */
+type SolidColorKey = Exclude<keyof BrandColors, "description">;
 
 type AdFormProps = {
   config: AdConfig;
@@ -51,6 +58,11 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const hasParagraphBreak = /\n{2,}/.test(config.tagline);
   const paragraphScale = config.taglineStyle.paragraphScale ?? 1;
   const descriptionAtLimit = (config.description ?? "").length >= MAX_DESCRIPTION_CHARS;
+
+  // Description color state (DES-2279): overridden = an explicit hex is set;
+  // otherwise the swatch shows the Tagline color it is inheriting.
+  const descriptionOverridden = Boolean(config.colors.description);
+  const { descriptionColor } = resolveTextColors(config.colors);
 
   const [isExtractingColors, setIsExtractingColors] = useState(false);
   const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
@@ -662,9 +674,8 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
               ["background", "Background"],
               ["primary", "Primary"],
               ["accent", "Accent / CTA"],
-              ["text", "Text"],
-              ["secondary", "Secondary"],
-            ] as [keyof BrandColors, string][]).map(([key, label]) => (
+              ["text", "Tagline"],
+            ] as [SolidColorKey, string][]).map(([key, label]) => (
               <div key={key} className="space-y-1">
                 <Label className="text-xs">{label}</Label>
                 <div className="flex items-center gap-2">
@@ -682,6 +693,40 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                 </div>
               </div>
             ))}
+
+            {/* Description (DES-2279) — follows the Tagline color until the user
+                sets an explicit one; clearing the field returns it to derived. */}
+            <div className="space-y-1 col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">Description</Label>
+                {descriptionOverridden ? (
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    onClick={() => updateColors({ description: null })}
+                  >
+                    Reset to Tagline
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Matches Tagline</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={descriptionColor}
+                  onChange={(e) => updateColors({ description: e.target.value })}
+                  className="w-8 h-8 rounded border border-border cursor-pointer"
+                  aria-label="Description color"
+                />
+                <Input
+                  value={config.colors.description ?? ""}
+                  placeholder={descriptionColor}
+                  onChange={(e) => updateColors({ description: e.target.value.trim() || null })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

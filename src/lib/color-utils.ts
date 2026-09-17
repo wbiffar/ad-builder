@@ -76,7 +76,6 @@ export async function extractColorsFromImage(imageUrl: string): Promise<string[]
  */
 export function generateBrandPalette(extractedColors: string[]): BrandColors {
   const primary = extractedColors[0] || "#293548";
-  const secondary = extractedColors[1] || darken(primary, 20);
   const accent = extractedColors[2] || lighten(primary, 40);
 
   // Determine text color based on background contrast
@@ -85,11 +84,29 @@ export function generateBrandPalette(extractedColors: string[]): BrandColors {
 
   return {
     primary,
-    secondary,
     accent,
     text: textColor,
+    // Derived from the tagline color, so a generated palette never splits the
+    // two apart on its own (DES-2279).
+    description: null,
     background: bgColor,
   };
+}
+
+/**
+ * Resolves the two text colors an ad renders (DES-2279).
+ *
+ * The tagline falls back to a readable color for the background when no Text
+ * color is set. The description follows the tagline unless the user set an
+ * explicit Description color — which is why an ad saved before that control
+ * existed (`colors.description` absent or null) looks exactly as it did.
+ */
+export function resolveTextColors(colors: BrandColors): {
+  taglineColor: string;
+  descriptionColor: string;
+} {
+  const taglineColor = colors.text || getContrastColor(colors.background);
+  return { taglineColor, descriptionColor: colors.description || taglineColor };
 }
 
 /**

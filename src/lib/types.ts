@@ -17,9 +17,20 @@ export type Tier = "good" | "better";
 
 export type BrandColors = {
   primary: string;
-  secondary: string;
   accent: string;
+  /**
+   * Tagline text color — labeled "Tagline" in the color panel (DES-2279). The
+   * key stays `text` so ads saved before the rename keep their color.
+   */
   text: string;
+  /**
+   * Description text color (DES-2279), replacing the old `secondary` swatch,
+   * which was wired to nothing. `null` means "derive from `text`" — the default,
+   * and what every ad saved before this control existed resolves to, so their
+   * appearance is unchanged. A hex string is an explicit override and affects
+   * the description line only.
+   */
+  description: string | null;
   background: string;
 };
 
@@ -187,9 +198,9 @@ export type PersistedSavedAdSet = {
 
 export const DEFAULT_COLORS: BrandColors = {
   primary: "#293548",
-  secondary: "#42608f",
   accent: "#dcb05e",
   text: "#ffffff",
+  description: null,
   background: "#293548",
 };
 
