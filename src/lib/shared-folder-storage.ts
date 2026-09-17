@@ -1,6 +1,6 @@
 import { AdConfig, PersistedAdConfig, PersistedSavedAdSet } from "./types";
 import { AdSetMetadata, SavedAdSet, migrateAdConfig, openDB, SHARED_FOLDER_STORE } from "./ad-storage";
-import { serializeConfig, hydrateConfig } from "./asset-store";
+import { serializeConfig, hydrateConfig, type AssetReadCache } from "./asset-store";
 
 // --- Minimal File System Access API typings ---
 // These cover the non-standard / not-yet-ubiquitous surface we rely on, so the
@@ -96,6 +96,24 @@ function fileNameFor(id: string): string {
   return `${id}.json`;
 }
 
+/**
+ * Drive conflict copies (and a crashed write) sometimes append bytes after a
+ * valid JSON document. V8 reports that as "Unexpected non-whitespace character
+ * after JSON at position N" — slice to N and parse the real object.
+ */
+function parseJsonAllowingTrailer<T>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    const match = /position (\d+)/i.exec(err instanceof Error ? err.message : "");
+    const pos = match ? Number(match[1]) : NaN;
+    if (Number.isFinite(pos) && pos > 0 && pos < text.length) {
+      return JSON.parse(text.slice(0, pos)) as T;
+    }
+    throw err;
+  }
+}
+
 export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet: SavedAdSet): Promise<void> {
   // getFileHandle({ create }) needs read-write permission; the picker can grant
   // read-only, so request the upgrade here (runs under the save-click gesture).
@@ -118,13 +136,36 @@ export async function saveAdSetToFolder(handle: FileSystemDirectoryHandle, adSet
   }
 }
 
+const LIST_PREFIX_BYTES = 8192;
+const SMALL_JSON_FALLBACK_BYTES = 32 * 1024;
+
+function stringFieldFromPrefix(text: string, field: string): string | null {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`"${escapedField}"\\s*:\\s*("(?:\\\\.|[^"\\\\])*")`).exec(text);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]) as string;
+  } catch {
+    return null;
+  }
+}
+
+function metadataFromPrefix(text: string): AdSetMetadata | null {
+  const id = stringFieldFromPrefix(text, "id");
+  if (!id) return null;
+  return {
+    id,
+    name: stringFieldFromPrefix(text, "name") ?? "Untitled Ad Set",
+    createdAt: stringFieldFromPrefix(text, "createdAt") ?? new Date().toISOString(),
+    updatedAt: stringFieldFromPrefix(text, "updatedAt") ?? new Date().toISOString(),
+  };
+}
+
 /**
- * Lists the ad sets in the folder as lightweight metadata — WITHOUT resolving
- * any image assets. This is the key to avoiding the Drive "Stream" freeze: the
- * assets/ subdirectory is never touched, so listing (even of many sets) never
- * downloads image bytes. Image data is fetched only when a set is opened via
- * readAdSet. Legacy files that still inline data URLs are read whole here (their
- * JSON carries the images), but shrink to metadata-only reads once re-saved.
+ * Lists ad sets from the first 8KB of each JSON — enough for id/name/timestamps
+ * on both new-format and legacy files (those fields are written first). Does not
+ * read inlined images or touch assets/, so Drive Stream never hydrates megabytes
+ * just to open the picker.
  */
 export async function listAdSetsMetadata(handle: FileSystemDirectoryHandle): Promise<AdSetMetadata[]> {
   const results: AdSetMetadata[] = [];
@@ -133,17 +174,27 @@ export async function listAdSetsMetadata(handle: FileSystemDirectoryHandle): Pro
     if (entry.kind !== "file" || !entry.name.endsWith(".json")) continue;
     try {
       const file = await (entry as FileSystemFileHandle).getFile();
-      const parsed = JSON.parse(await file.text()) as Partial<PersistedSavedAdSet>;
-      if (!parsed.id || !parsed.configMap) {
+      const prefix = await file.slice(0, Math.min(LIST_PREFIX_BYTES, file.size)).text();
+      let meta = metadataFromPrefix(prefix);
+      // Tiny files may not include the header fields in a regex-friendly way
+      // after truncation; only then fall back to a full read, and only if the
+      // file is small enough that a full read cannot freeze the machine.
+      if (!meta && file.size <= SMALL_JSON_FALLBACK_BYTES) {
+        const parsed = parseJsonAllowingTrailer<Partial<PersistedSavedAdSet>>(await file.text());
+        if (parsed.id && parsed.configMap) {
+          meta = {
+            id: parsed.id,
+            name: parsed.name ?? "Untitled Ad Set",
+            createdAt: parsed.createdAt ?? new Date().toISOString(),
+            updatedAt: parsed.updatedAt ?? new Date().toISOString(),
+          };
+        }
+      }
+      if (!meta) {
         console.warn(`Skipping malformed ad set file: ${entry.name}`);
         continue;
       }
-      results.push({
-        id: parsed.id,
-        name: parsed.name ?? "Untitled Ad Set",
-        createdAt: parsed.createdAt ?? new Date().toISOString(),
-        updatedAt: parsed.updatedAt ?? new Date().toISOString(),
-      });
+      results.push(meta);
     } catch (err) {
       console.error(`Failed to parse shared ad set file: ${entry.name}`, err);
     }
@@ -168,18 +219,21 @@ export async function readAdSet(handle: FileSystemDirectoryHandle, id: string): 
     throw err;
   }
   try {
-    const parsed = JSON.parse(await file.text()) as Partial<PersistedSavedAdSet>;
+    const parsed = parseJsonAllowingTrailer<Partial<PersistedSavedAdSet>>(await file.text());
     if (!parsed.id || !parsed.configMap) {
       console.warn(`Skipping malformed ad set file: ${fileNameFor(id)}`);
       return null;
     }
-    // Resolve asset references back to data URLs, then fill in any missing
-    // fields. Legacy files with inline data URLs pass through hydrate as-is.
+    // One cache for the whole set: the same logo/photo is referenced by every
+    // size, so we read each asset file once instead of ten times.
+    const cache: AssetReadCache = new Map();
     const configMap: Record<string, AdConfig> = {};
-    for (const [size, cfg] of Object.entries(parsed.configMap)) {
-      const hydrated = await hydrateConfig(handle, (cfg ?? {}) as PersistedAdConfig);
-      configMap[size] = migrateAdConfig(hydrated);
-    }
+    await Promise.all(
+      Object.entries(parsed.configMap).map(async ([size, cfg]) => {
+        const hydrated = await hydrateConfig(handle, (cfg ?? {}) as PersistedAdConfig, cache);
+        configMap[size] = migrateAdConfig(hydrated);
+      })
+    );
     return {
       id: parsed.id,
       name: parsed.name ?? "Untitled Ad Set",

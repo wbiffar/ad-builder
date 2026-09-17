@@ -105,8 +105,9 @@ export default function AdCreatorPage() {
   const [needsReconnect, setNeedsReconnect] = useState(false);
   const [folderMessage, setFolderMessage] = useState<string | null>(null);
   const [currentAdSetId, setCurrentAdSetId] = useState<string | null>(null);
-  // Snapshot of configMap as of the last load/save — used to detect unsaved edits.
-  const [baseline, setBaseline] = useState<string>(() => JSON.stringify(INITIAL_CONFIG_MAP));
+  const [isDirty, setIsDirty] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  const saveNoteTimer = useRef<number | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string; shared: boolean } | null>(null);
@@ -122,8 +123,6 @@ export default function AdCreatorPage() {
   const firstSelected = AD_SIZES.find((s) => selectedAds.has(s.name))?.name ?? AD_SIZES[0].name;
   const formConfig = configMap[firstSelected];
 
-  // Unsaved-changes detection + the label shown in the Current Ad card.
-  const isDirty = JSON.stringify(configMap) !== baseline;
   const currentSet = currentAdSetId
     ? savedAdSets.find((s) => s.id === currentAdSetId) ?? sharedAdSets.find((s) => s.id === currentAdSetId)
     : null;
@@ -148,6 +147,8 @@ export default function AdCreatorPage() {
   // Apply form changes only to selected ads
   const handleConfigChange = useCallback(
     (newConfig: AdConfig) => {
+      setIsDirty(true);
+      setSaveNote(null);
       setConfigMap((prev) => {
         const next = { ...prev };
         for (const name of selectedAds) {
@@ -158,6 +159,19 @@ export default function AdCreatorPage() {
     },
     [selectedAds]
   );
+
+  const markClean = useCallback((note = "Saved") => {
+    setIsDirty(false);
+    setSaveNote(note);
+    if (saveNoteTimer.current) window.clearTimeout(saveNoteTimer.current);
+    saveNoteTimer.current = window.setTimeout(() => setSaveNote(null), 2500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (saveNoteTimer.current) window.clearTimeout(saveNoteTimer.current);
+    };
+  }, []);
 
   // Load saved ad sets on mount
   useEffect(() => {
@@ -234,6 +248,7 @@ export default function AdCreatorPage() {
     await clearDirectoryHandle();
     setDirHandle(null);
     setSharedAdSets([]);
+    setSharedListLoaded(false);
     setNeedsReconnect(false);
     setFolderMessage(null);
   }, []);
@@ -275,7 +290,7 @@ export default function AdCreatorPage() {
     const name = formConfig.funeralHomeName || "Untitled Ad Set";
     const newSet = await saveAdSet(name, configMap);
     setCurrentAdSetId(newSet.id);
-    setBaseline(JSON.stringify(configMap));
+    markClean();
     setSavedAdSets(await getSavedAdSets());
     if (dirHandle) {
       try {
@@ -286,13 +301,13 @@ export default function AdCreatorPage() {
         setFolderMessage("Saved locally, but writing to the shared folder failed.");
       }
     }
-  }, [configMap, formConfig.funeralHomeName, dirHandle, upsertSharedMeta]);
+  }, [configMap, formConfig.funeralHomeName, dirHandle, upsertSharedMeta, markClean]);
 
   const handleUpdateAdSet = useCallback(async () => {
     if (!currentAdSetId) return;
     const name = formConfig.funeralHomeName || "Untitled Ad Set";
     await updateAdSet(currentAdSetId, configMap, name);
-    setBaseline(JSON.stringify(configMap));
+    markClean();
     const fresh = await getSavedAdSets();
     setSavedAdSets(fresh);
     if (dirHandle) {
@@ -317,7 +332,7 @@ export default function AdCreatorPage() {
         setFolderMessage("Updated locally, but writing to the shared folder failed.");
       }
     }
-  }, [configMap, currentAdSetId, dirHandle, sharedAdSets, formConfig.funeralHomeName, upsertSharedMeta]);
+  }, [configMap, currentAdSetId, dirHandle, sharedAdSets, formConfig.funeralHomeName, upsertSharedMeta, markClean]);
 
   // The combined save action surfaced in the Current Ad card: update the loaded
   // set, or create a new one if nothing is loaded yet.
@@ -344,17 +359,21 @@ export default function AdCreatorPage() {
       }
     }
     if (!set) return;
-    const clone: ConfigMap = JSON.parse(JSON.stringify(set.configMap));
+    const clone: ConfigMap = Object.fromEntries(
+      Object.entries(set.configMap).map(([key, cfg]) => [key, { ...cfg }])
+    );
     setConfigMap(clone);
     setCurrentAdSetId(set.id);
-    setBaseline(JSON.stringify(clone));
+    setIsDirty(false);
+    setSaveNote(null);
     setShowPicker(false);
   };
 
   const doNewAdSet = () => {
     setConfigMap(INITIAL_CONFIG_MAP);
     setCurrentAdSetId(null);
-    setBaseline(JSON.stringify(INITIAL_CONFIG_MAP));
+    setIsDirty(false);
+    setSaveNote(null);
     setShowPicker(false);
   };
 
@@ -477,11 +496,15 @@ export default function AdCreatorPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-muted-foreground">Current Ad</label>
-                  {isDirty && (
+                  {isDirty ? (
                     <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600">
                       <span className="size-1.5 rounded-full bg-amber-500" /> Unsaved
                     </span>
-                  )}
+                  ) : saveNote ? (
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+                      <Check className="size-3" /> {saveNote}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-1.5 min-w-0">
                   {currentSet &&
