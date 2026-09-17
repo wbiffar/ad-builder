@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.0 — September 17, 2026
+
+### New Features
+
+- **Description Color** — The color panel's Secondary swatch becomes **Description** and controls the description text, and **Text** is relabeled **Tagline** to say what it actually does. Secondary was wired to nothing: changing it had no visible effect on the ad, so it took up a slot in the panel and implied control that wasn't there
+
+  Description follows the Tagline color until you set one explicitly, so the default pairing stays intact and nothing has to be color-matched by hand. Setting a color affects the description line only — the tagline, CTA and everything else are untouched — and it stops tracking later Tagline changes until "Reset to Tagline" hands it back. Existing ads are unaffected: the old Secondary value is discarded rather than promoted into the new control, so a saved ad opens with its description in the tagline color exactly as it rendered before
+
 ## v1.6.0 — September 11, 2026
 
 ### New Features

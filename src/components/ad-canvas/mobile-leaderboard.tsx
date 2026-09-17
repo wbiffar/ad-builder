@@ -6,10 +6,10 @@ import {
   CtaButton,
   LogoImage,
   TaglineText,
+  resolveTextColors,
   getGradientCSS,
   getBorderStyles,
 } from "./shared";
-import { getContrastColor } from "@/lib/color-utils";
 import { getFontFallback } from "@/lib/fonts";
 
 const WIDTH = 320;
@@ -18,7 +18,7 @@ const HEIGHT = 50;
 export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
   const { colors, logoUrl, tagline, ctaText, templateStyle, designElements, logoSettings, taglineStyle, taglineFont } = config;
   const bg = getGradientCSS(designElements, colors.background);
-  const textColor = colors.text || getContrastColor(colors.background);
+  const { taglineColor } = resolveTextColors(colors);
   const borderStyles = getBorderStyles(designElements);
   const wc = logoSettings.whiteContainer;
   const ls = logoSettings.scale ?? 1;
@@ -38,7 +38,7 @@ export function MobileLeaderboard({ config, adRef }: AdTemplateProps) {
           {logoUrl && <LogoImage src={logoUrl} maxWidth={60} maxHeight={35} whiteContainer={wc} scale={ls} containerPadding={cs} />}
         </div>
         <div style={{
-          color: textColor,
+          color: taglineColor,
           fontSize: 11 * (tss.fontSizeScale ?? 1),
           fontWeight: tss.fontWeight ?? (isScript ? 400 : 600),
           fontFamily: taglineFont ? getFontFallback(taglineFont) : (isScript ? "'Georgia', 'Palatino Linotype', serif" : "'Inter', 'DM Sans', sans-serif"),
