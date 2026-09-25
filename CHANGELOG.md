@@ -8,6 +8,10 @@
 
   With the switch off, which is the default for everyone, uploading or replacing a logo leaves the current colors alone. The colors pulled from the logo still appear as swatches you can click to apply, so the suggestions are one click away without being forced on you. The swatches are saved with the ad they came from, so reopening a saved ad shows the colors pulled from its own logo, not ones left over from a logo uploaded earlier in the session. Turning the switch on applies a scheme from the current logo and regenerates it on each new upload, as before. If your colors have been customized, you'll first see a confirmation that compares your current colors with the logo's, and cancelling leaves both the switch and your colors as they were. The setting is yours rather than any one ad's: it applies to every ad and stays put across reloads, but isn't shared with the team through the shared folder. Manual color editing works the same either way, and existing ads keep their colors unchanged
 
+### Improvements
+
+- **Brand Colors Placement** — The Brand Colors panel moves up to sit directly beneath Logo, instead of below Photo. The logo is what the colors are generated from and what the swatches are pulled from, so the two now sit together instead of being separated by the copy and photo fields
+
 ## v1.8.0 — September 25, 2026
 
 ### New Features

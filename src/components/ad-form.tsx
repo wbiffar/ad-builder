@@ -371,6 +371,112 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         </CardContent>
       </Card>
 
+      {/* Brand Colors */}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Brand Colors</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Logo-based generation (DES-2284) — off by default, user-wide. */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="generate-from-logo" className="text-xs">Use logo to generate color scheme</Label>
+              <Switch
+                id="generate-from-logo"
+                checked={generateFromLogo}
+                disabled={isExtractingColors}
+                onCheckedChange={handleGenerateToggle}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {generateFromLogo
+                ? "Uploading a logo replaces these colors with a scheme generated from it."
+                : "Uploading or replacing a logo won't change these colors. Applies to all your ads."}
+            </p>
+          </div>
+
+          {extractedPalette.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Extracted from logo — click to use as primary:</p>
+              <div className="flex gap-1.5">
+                {extractedPalette.map((color, i) => (
+                  <button
+                    key={i}
+                    className="w-7 h-7 rounded-md border border-border hover:scale-110 transition-transform"
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      const palette = generateBrandPalette([color, ...extractedPalette.filter((_, j) => j !== i)]);
+                      onChange({ ...config, colors: palette });
+                    }}
+                    title={`Use ${color} as primary`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              ["background", "Background"],
+              ["primary", "Primary"],
+              ["accent", "Accent / CTA"],
+              ["text", "Tagline"],
+            ] as [SolidColorKey, string][]).map(([key, label]) => (
+              <div key={key} className="space-y-1">
+                <Label className="text-xs">{label}</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={config.colors[key]}
+                    onChange={(e) => updateColors({ [key]: e.target.value })}
+                    className="w-8 h-8 rounded border border-border cursor-pointer"
+                  />
+                  <Input
+                    value={config.colors[key]}
+                    onChange={(e) => updateColors({ [key]: e.target.value })}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Description (DES-2279) — follows the Tagline color until the user
+                sets an explicit one; clearing the field returns it to derived. */}
+            <div className="space-y-1 col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">Description</Label>
+                {descriptionOverridden ? (
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    onClick={() => updateColors({ description: null })}
+                  >
+                    Reset to Tagline
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Matches Tagline</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={descriptionColor}
+                  onChange={(e) => updateColors({ description: e.target.value })}
+                  className="w-8 h-8 rounded border border-border cursor-pointer"
+                  aria-label="Description color"
+                />
+                <Input
+                  value={config.colors.description ?? ""}
+                  placeholder={descriptionColor}
+                  onChange={(e) => updateColors({ description: e.target.value.trim() || null })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tagline */}
       <Card size="sm">
         <CardHeader>
@@ -714,112 +820,6 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Brand Colors */}
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Brand Colors</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Logo-based generation (DES-2284) — off by default, user-wide. */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="generate-from-logo" className="text-xs">Use logo to generate color scheme</Label>
-              <Switch
-                id="generate-from-logo"
-                checked={generateFromLogo}
-                disabled={isExtractingColors}
-                onCheckedChange={handleGenerateToggle}
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              {generateFromLogo
-                ? "Uploading a logo replaces these colors with a scheme generated from it."
-                : "Uploading or replacing a logo won't change these colors. Applies to all your ads."}
-            </p>
-          </div>
-
-          {extractedPalette.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">Extracted from logo — click to use as primary:</p>
-              <div className="flex gap-1.5">
-                {extractedPalette.map((color, i) => (
-                  <button
-                    key={i}
-                    className="w-7 h-7 rounded-md border border-border hover:scale-110 transition-transform"
-                    style={{ backgroundColor: color }}
-                    onClick={() => {
-                      const palette = generateBrandPalette([color, ...extractedPalette.filter((_, j) => j !== i)]);
-                      onChange({ ...config, colors: palette });
-                    }}
-                    title={`Use ${color} as primary`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              ["background", "Background"],
-              ["primary", "Primary"],
-              ["accent", "Accent / CTA"],
-              ["text", "Tagline"],
-            ] as [SolidColorKey, string][]).map(([key, label]) => (
-              <div key={key} className="space-y-1">
-                <Label className="text-xs">{label}</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={config.colors[key]}
-                    onChange={(e) => updateColors({ [key]: e.target.value })}
-                    className="w-8 h-8 rounded border border-border cursor-pointer"
-                  />
-                  <Input
-                    value={config.colors[key]}
-                    onChange={(e) => updateColors({ [key]: e.target.value })}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-              </div>
-            ))}
-
-            {/* Description (DES-2279) — follows the Tagline color until the user
-                sets an explicit one; clearing the field returns it to derived. */}
-            <div className="space-y-1 col-span-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-xs">Description</Label>
-                {descriptionOverridden ? (
-                  <button
-                    type="button"
-                    className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-                    onClick={() => updateColors({ description: null })}
-                  >
-                    Reset to Tagline
-                  </button>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">Matches Tagline</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={descriptionColor}
-                  onChange={(e) => updateColors({ description: e.target.value })}
-                  className="w-8 h-8 rounded border border-border cursor-pointer"
-                  aria-label="Description color"
-                />
-                <Input
-                  value={config.colors.description ?? ""}
-                  placeholder={descriptionColor}
-                  onChange={(e) => updateColors({ description: e.target.value.trim() || null })}
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
