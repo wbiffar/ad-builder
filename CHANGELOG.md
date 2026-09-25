@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.9.0 — September 25, 2026
+
+### New Features
+
+- **Logo Color Generation Toggle** — Generating a color scheme from the logo is now opt-in, controlled by a new **Use logo to generate color scheme** switch at the top of Brand Colors. It used to run on every upload, so replacing a logo, after a rebrand or a logo refresh, silently wiped out colors someone had set up by hand. Most people build or heavily rework their own scheme anyway, so running it automatically did more harm than good
+
+  With the switch off, which is the default for everyone, uploading or replacing a logo leaves the current colors alone. The colors pulled from the logo still appear as swatches you can click to apply, so the suggestions are one click away without being forced on you. Turning the switch on applies a scheme from the current logo and regenerates it on each new upload, as before. If your colors have been customized, you'll first see a confirmation that compares your current colors with the logo's, and cancelling leaves both the switch and your colors as they were. The setting is yours rather than any one ad's: it applies to every ad and stays put across reloads, but isn't shared with the team through the shared folder. Manual color editing works the same either way, and existing ads keep their colors unchanged
+
 ## v1.8.0 — September 25, 2026
 
 ### New Features
