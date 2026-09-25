@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useCallback, useState, useRef, useEffect } from "react";
-import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, ImagePlacement, LogoPlacement, DEFAULT_TAGLINE_STYLE, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
+import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, ImagePlacement, LogoPlacement, DEFAULT_COLORS, DEFAULT_TAGLINE_STYLE, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
 import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
 import { extractColorsFromImage, generateBrandPalette, resolveTextColors } from "@/lib/color-utils";
 import { optimizeUpload } from "@/lib/image-optimize";
+import { setPreference, usePreference } from "@/lib/preferences";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { BorderPanel, GradientPanel } from "@/components/design-elements/design-panel";
+import { ReplaceColorsDialog } from "@/components/replace-colors-dialog";
 
 // Tagline copy limits (DES-2209). A single tagline feeds every ad size, so
 // these are global caps; each template then auto-scales the copy to fit its
@@ -33,6 +35,13 @@ const MAX_DESCRIPTION_CHARS = 70;
  * it gets its own control rather than riding the generic swatch grid.
  */
 type SolidColorKey = Exclude<keyof BrandColors, "description">;
+
+function sameColors(a: BrandColors, b: BrandColors): boolean {
+  const norm = (c: string | null | undefined) => (c ?? "").toLowerCase();
+  return (["primary", "accent", "text", "description", "background"] as const).every(
+    (k) => norm(a[k]) === norm(b[k])
+  );
+}
 
 type AdFormProps = {
   config: AdConfig;
@@ -65,7 +74,16 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const { descriptionColor } = resolveTextColors(config.colors);
 
   const [isExtractingColors, setIsExtractingColors] = useState(false);
-  const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
+  // Swatches come from the ad itself, so they always belong to the logo that's
+  // on it — never left over from a logo on a previously open ad.
+  const extractedPalette = (config.logoUrl && config.logoPalette) || [];
+  // Logo-based color generation is opt-in and user-wide (DES-2284). While it's
+  // off, a logo upload still extracts swatches to pick from, but never touches
+  // the current scheme.
+  const generateFromLogo = usePreference("generateColorsFromLogo");
+  // A generated scheme waiting on the user to confirm it may replace custom
+  // colors, with the swatches it came from.
+  const [pendingPalette, setPendingPalette] = useState<{ colors: BrandColors; swatches: string[] } | null>(null);
   const [logoDragActive, setLogoDragActive] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -97,22 +115,76 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     async (file: File) => {
       if (!file.type.startsWith("image/")) return;
       const url = await optimizeUpload(file, "logo");
-      update({ logoUrl: url });
+      // Clear the old logo's swatches while the new ones are extracted.
+      update({ logoUrl: url, logoPalette: null });
 
       setIsExtractingColors(true);
       try {
-        const colors = await extractColorsFromImage(url);
-        setExtractedPalette(colors);
-        const palette = generateBrandPalette(colors);
-        onChange({ ...config, logoUrl: url, colors: palette });
+        const swatches = await extractColorsFromImage(url);
+        onChange({
+          ...config,
+          logoUrl: url,
+          logoPalette: swatches,
+          ...(generateFromLogo ? { colors: generateBrandPalette(swatches) } : {}),
+        });
       } catch (err) {
         console.error("Color extraction failed:", err);
       } finally {
         setIsExtractingColors(false);
       }
     },
-    [config, onChange, update]
+    [config, onChange, update, generateFromLogo]
   );
+
+  const handleGenerateToggle = useCallback(
+    async (checked: boolean) => {
+      // Turning it off never changes colors — it only stops future uploads
+      // from regenerating them.
+      if (!checked || !config.logoUrl) {
+        setPreference("generateColorsFromLogo", checked);
+        return;
+      }
+
+      // Use the swatches already pulled for this logo; only an ad saved before
+      // they were stored needs extracting here.
+      let swatches = config.logoPalette;
+      if (!swatches?.length) {
+        setIsExtractingColors(true);
+        try {
+          swatches = await extractColorsFromImage(config.logoUrl);
+        } catch (err) {
+          // Still honor the preference; the next upload will generate.
+          console.error("Color extraction failed:", err);
+          setPreference("generateColorsFromLogo", true);
+          return;
+        } finally {
+          setIsExtractingColors(false);
+        }
+      }
+      const palette = generateBrandPalette(swatches);
+
+      // Only a scheme the user actually shaped is worth protecting: the
+      // defaults, or a scheme identical to what the logo generates, lose nothing.
+      const customized =
+        !sameColors(config.colors, DEFAULT_COLORS) && !sameColors(config.colors, palette);
+      if (customized) {
+        setPendingPalette({ colors: palette, swatches });
+        return;
+      }
+      setPreference("generateColorsFromLogo", true);
+      update({ colors: palette, logoPalette: swatches });
+    },
+    [config.logoUrl, config.logoPalette, config.colors, update]
+  );
+
+  const confirmReplaceColors = useCallback(() => {
+    if (!pendingPalette) return;
+    setPreference("generateColorsFromLogo", true);
+    update({ colors: pendingPalette.colors, logoPalette: pendingPalette.swatches });
+    setPendingPalette(null);
+  }, [pendingPalette, update]);
+
+  const cancelReplaceColors = useCallback(() => setPendingPalette(null), []);
 
   const handleLogoUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,7 +283,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                   alt="Logo preview"
                   className="max-h-20 mx-auto object-contain"
                 />
-                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ logoUrl: null }); }}>
+                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ logoUrl: null, logoPalette: null }); }}>
                   Remove
                 </Button>
               </div>
@@ -232,7 +304,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
             )}
           </div>
           {isExtractingColors && (
-            <p className="text-xs text-muted-foreground">Extracting brand colors...</p>
+            <p className="text-xs text-muted-foreground">
+              {generateFromLogo ? "Generating colors from logo..." : "Extracting logo colors..."}
+            </p>
           )}
 
           {/* Logo Settings — shown when a logo is uploaded */}
@@ -294,6 +368,112 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Brand Colors */}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Brand Colors</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Logo-based generation (DES-2284) — off by default, user-wide. */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="generate-from-logo" className="text-xs">Use logo to generate color scheme</Label>
+              <Switch
+                id="generate-from-logo"
+                checked={generateFromLogo}
+                disabled={isExtractingColors}
+                onCheckedChange={handleGenerateToggle}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {generateFromLogo
+                ? "Uploading a logo replaces these colors with a scheme generated from it."
+                : "Uploading or replacing a logo won't change these colors. Applies to all your ads."}
+            </p>
+          </div>
+
+          {extractedPalette.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Extracted from logo — click to use as primary:</p>
+              <div className="flex gap-1.5">
+                {extractedPalette.map((color, i) => (
+                  <button
+                    key={i}
+                    className="w-7 h-7 rounded-md border border-border hover:scale-110 transition-transform"
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      const palette = generateBrandPalette([color, ...extractedPalette.filter((_, j) => j !== i)]);
+                      onChange({ ...config, colors: palette });
+                    }}
+                    title={`Use ${color} as primary`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              ["background", "Background"],
+              ["primary", "Primary"],
+              ["accent", "Accent / CTA"],
+              ["text", "Tagline"],
+            ] as [SolidColorKey, string][]).map(([key, label]) => (
+              <div key={key} className="space-y-1">
+                <Label className="text-xs">{label}</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={config.colors[key]}
+                    onChange={(e) => updateColors({ [key]: e.target.value })}
+                    className="w-8 h-8 rounded border border-border cursor-pointer"
+                  />
+                  <Input
+                    value={config.colors[key]}
+                    onChange={(e) => updateColors({ [key]: e.target.value })}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Description (DES-2279) — follows the Tagline color until the user
+                sets an explicit one; clearing the field returns it to derived. */}
+            <div className="space-y-1 col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">Description</Label>
+                {descriptionOverridden ? (
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    onClick={() => updateColors({ description: null })}
+                  >
+                    Reset to Tagline
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Matches Tagline</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={descriptionColor}
+                  onChange={(e) => updateColors({ description: e.target.value })}
+                  className="w-8 h-8 rounded border border-border cursor-pointer"
+                  aria-label="Description color"
+                />
+                <Input
+                  value={config.colors.description ?? ""}
+                  placeholder={descriptionColor}
+                  onChange={(e) => updateColors({ description: e.target.value.trim() || null })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -643,94 +823,6 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         </CardContent>
       </Card>
 
-      {/* Brand Colors */}
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Brand Colors</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {extractedPalette.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">Extracted from logo:</p>
-              <div className="flex gap-1.5">
-                {extractedPalette.map((color, i) => (
-                  <button
-                    key={i}
-                    className="w-7 h-7 rounded-md border border-border hover:scale-110 transition-transform"
-                    style={{ backgroundColor: color }}
-                    onClick={() => {
-                      const palette = generateBrandPalette([color, ...extractedPalette.filter((_, j) => j !== i)]);
-                      onChange({ ...config, colors: palette });
-                    }}
-                    title={`Use ${color} as primary`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              ["background", "Background"],
-              ["primary", "Primary"],
-              ["accent", "Accent / CTA"],
-              ["text", "Tagline"],
-            ] as [SolidColorKey, string][]).map(([key, label]) => (
-              <div key={key} className="space-y-1">
-                <Label className="text-xs">{label}</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={config.colors[key]}
-                    onChange={(e) => updateColors({ [key]: e.target.value })}
-                    className="w-8 h-8 rounded border border-border cursor-pointer"
-                  />
-                  <Input
-                    value={config.colors[key]}
-                    onChange={(e) => updateColors({ [key]: e.target.value })}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-              </div>
-            ))}
-
-            {/* Description (DES-2279) — follows the Tagline color until the user
-                sets an explicit one; clearing the field returns it to derived. */}
-            <div className="space-y-1 col-span-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-xs">Description</Label>
-                {descriptionOverridden ? (
-                  <button
-                    type="button"
-                    className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-                    onClick={() => updateColors({ description: null })}
-                  >
-                    Reset to Tagline
-                  </button>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">Matches Tagline</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={descriptionColor}
-                  onChange={(e) => updateColors({ description: e.target.value })}
-                  className="w-8 h-8 rounded border border-border cursor-pointer"
-                  aria-label="Description color"
-                />
-                <Input
-                  value={config.colors.description ?? ""}
-                  placeholder={descriptionColor}
-                  onChange={(e) => updateColors({ description: e.target.value.trim() || null })}
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Template Style */}
       <Card size="sm">
         <CardHeader>
@@ -856,6 +948,15 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         elements={config.designElements}
         onChange={(elements) => onChange({ ...config, designElements: elements })}
       />
+
+      {pendingPalette && (
+        <ReplaceColorsDialog
+          current={config.colors}
+          generated={pendingPalette.colors}
+          onConfirm={confirmReplaceColors}
+          onCancel={cancelReplaceColors}
+        />
+      )}
     </div>
   );
 }
