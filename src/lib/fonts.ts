@@ -5,6 +5,14 @@ export type FontOption = {
   weights: number[];
   hasItalic?: boolean;
   isSystem?: boolean;
+  /**
+   * Explicit CSS font stack, overriding the generic one for the category. Used
+   * where the category default would swap in a visibly different face — the
+   * serif default leads with Georgia, which is wider and rounder than Times New
+   * Roman, so a machine without Times New Roman should fall back to its
+   * metric-compatible stand-ins instead (DES-2286).
+   */
+  fallback?: string;
 };
 
 export const FONT_OPTIONS: FontOption[] = [
@@ -17,6 +25,18 @@ export const FONT_OPTIONS: FontOption[] = [
   { name: "Roboto Slab", family: "Roboto Slab", category: "serif", weights: [400, 500, 600, 700] },
   { name: "Courgette", family: "Courgette", category: "script", weights: [400] },
   { name: "Georgia", family: "Georgia", category: "serif", weights: [400, 700], isSystem: true },
+  // System font on Windows and macOS, so nothing is fetched or licensed. Times
+  // (macOS/iOS), Liberation Serif and Tinos (Linux/ChromeOS) share its metrics,
+  // so copy that auto-fits against one fits the others (DES-2286).
+  {
+    name: "Times New Roman",
+    family: "Times New Roman",
+    category: "serif",
+    weights: [400, 700],
+    hasItalic: true,
+    isSystem: true,
+    fallback: "'Times New Roman', Times, 'Liberation Serif', Tinos, serif",
+  },
 ];
 
 const loadedFonts = new Set<string>();
@@ -47,6 +67,7 @@ export function loadGoogleFont(family: string): void {
 export function getFontFallback(family: string): string {
   const font = FONT_OPTIONS.find((f) => f.family === family);
   if (!font) return `'${family}', sans-serif`;
+  if (font.fallback) return font.fallback;
   switch (font.category) {
     case "serif":
       return `'${family}', Georgia, 'Palatino Linotype', serif`;
