@@ -74,13 +74,16 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const { descriptionColor } = resolveTextColors(config.colors);
 
   const [isExtractingColors, setIsExtractingColors] = useState(false);
-  const [extractedPalette, setExtractedPalette] = useState<string[]>([]);
+  // Swatches come from the ad itself, so they always belong to the logo that's
+  // on it — never left over from a logo on a previously open ad.
+  const extractedPalette = (config.logoUrl && config.logoPalette) || [];
   // Logo-based color generation is opt-in and user-wide (DES-2284). While it's
   // off, a logo upload still extracts swatches to pick from, but never touches
   // the current scheme.
   const generateFromLogo = usePreference("generateColorsFromLogo");
-  // A generated scheme waiting on the user to confirm it may replace custom colors.
-  const [pendingPalette, setPendingPalette] = useState<BrandColors | null>(null);
+  // A generated scheme waiting on the user to confirm it may replace custom
+  // colors, with the swatches it came from.
+  const [pendingPalette, setPendingPalette] = useState<{ colors: BrandColors; swatches: string[] } | null>(null);
   const [logoDragActive, setLogoDragActive] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -112,15 +115,18 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
     async (file: File) => {
       if (!file.type.startsWith("image/")) return;
       const url = await optimizeUpload(file, "logo");
-      update({ logoUrl: url });
+      // Clear the old logo's swatches while the new ones are extracted.
+      update({ logoUrl: url, logoPalette: null });
 
       setIsExtractingColors(true);
       try {
-        const colors = await extractColorsFromImage(url);
-        setExtractedPalette(colors);
-        if (generateFromLogo) {
-          onChange({ ...config, logoUrl: url, colors: generateBrandPalette(colors) });
-        }
+        const swatches = await extractColorsFromImage(url);
+        onChange({
+          ...config,
+          logoUrl: url,
+          logoPalette: swatches,
+          ...(generateFromLogo ? { colors: generateBrandPalette(swatches) } : {}),
+        });
       } catch (err) {
         console.error("Color extraction failed:", err);
       } finally {
@@ -139,41 +145,44 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
         return;
       }
 
-      setIsExtractingColors(true);
-      let palette: BrandColors;
-      try {
-        const colors = await extractColorsFromImage(config.logoUrl);
-        setExtractedPalette(colors);
-        palette = generateBrandPalette(colors);
-      } catch (err) {
-        // Still honor the preference; the next upload will generate.
-        console.error("Color extraction failed:", err);
-        setPreference("generateColorsFromLogo", true);
-        return;
-      } finally {
-        setIsExtractingColors(false);
+      // Use the swatches already pulled for this logo; only an ad saved before
+      // they were stored needs extracting here.
+      let swatches = config.logoPalette;
+      if (!swatches?.length) {
+        setIsExtractingColors(true);
+        try {
+          swatches = await extractColorsFromImage(config.logoUrl);
+        } catch (err) {
+          // Still honor the preference; the next upload will generate.
+          console.error("Color extraction failed:", err);
+          setPreference("generateColorsFromLogo", true);
+          return;
+        } finally {
+          setIsExtractingColors(false);
+        }
       }
+      const palette = generateBrandPalette(swatches);
 
       // Only a scheme the user actually shaped is worth protecting: the
       // defaults, or a scheme identical to what the logo generates, lose nothing.
       const customized =
         !sameColors(config.colors, DEFAULT_COLORS) && !sameColors(config.colors, palette);
       if (customized) {
-        setPendingPalette(palette);
+        setPendingPalette({ colors: palette, swatches });
         return;
       }
       setPreference("generateColorsFromLogo", true);
-      updateColors(palette);
+      update({ colors: palette, logoPalette: swatches });
     },
-    [config.logoUrl, config.colors, updateColors]
+    [config.logoUrl, config.logoPalette, config.colors, update]
   );
 
   const confirmReplaceColors = useCallback(() => {
     if (!pendingPalette) return;
     setPreference("generateColorsFromLogo", true);
-    updateColors(pendingPalette);
+    update({ colors: pendingPalette.colors, logoPalette: pendingPalette.swatches });
     setPendingPalette(null);
-  }, [pendingPalette, updateColors]);
+  }, [pendingPalette, update]);
 
   const cancelReplaceColors = useCallback(() => setPendingPalette(null), []);
 
@@ -274,7 +283,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                   alt="Logo preview"
                   className="max-h-20 mx-auto object-contain"
                 />
-                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ logoUrl: null }); }}>
+                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); update({ logoUrl: null, logoPalette: null }); }}>
                   Remove
                 </Button>
               </div>
@@ -943,7 +952,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
       {pendingPalette && (
         <ReplaceColorsDialog
           current={config.colors}
-          generated={pendingPalette}
+          generated={pendingPalette.colors}
           onConfirm={confirmReplaceColors}
           onCancel={cancelReplaceColors}
         />

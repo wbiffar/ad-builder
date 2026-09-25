@@ -137,6 +137,14 @@ export const DEFAULT_DESCRIPTION_STYLE: DescriptionStyle = {
 export type AdConfig = {
   funeralHomeName: string;
   logoUrl: string | null;
+  /**
+   * Swatches pulled from `logoUrl` when it was uploaded (DES-2284). Saved with
+   * the ad so reopening it offers the same swatches it was built from, rather
+   * than whatever the last logo in the session produced. Null for ads saved
+   * before this field existed and for ads with no logo; set together with
+   * `logoUrl` and cleared with it.
+   */
+  logoPalette: string[] | null;
   tagline: string;
   ctaText: string;
   colors: BrandColors;
@@ -235,6 +243,7 @@ export const DEFAULT_DESIGN_ELEMENTS: DesignElements = {
 export const DEFAULT_AD_CONFIG: AdConfig = {
   funeralHomeName: "",
   logoUrl: null,
+  logoPalette: null,
   tagline: "Compassionate care in your time of need",
   ctaText: "Learn More",
   colors: DEFAULT_COLORS,
