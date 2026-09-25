@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.8.0 — September 25, 2026
+
+### New Features
+
+- **Times New Roman** — Times New Roman joins the font options for both the tagline and the description. Clients have been asking for it to match a traditional look they already use elsewhere, and none of the existing serifs was a substitute. It's a system font, so it renders in the builder preview and in exported PNGs without loading anything. On a machine that doesn't have it, the ad falls back to Times, Liberation Serif or Tinos, which share its letter widths, rather than the builder's usual Georgia fallback, which is wider and would change how copy wraps. Existing font options and saved ads are unchanged
+
 ## v1.7.0 — September 17, 2026
 
 ### New Features
