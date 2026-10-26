@@ -1,4 +1,4 @@
-import { toBlob } from "html-to-image";
+import { toBlob, getFontEmbedCSS } from "html-to-image";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { AdSize } from "./types";
@@ -43,6 +43,49 @@ export function buildExportFilename(
 }
 
 /**
+ * Embedded web-font CSS, keyed by the font families an ad uses. Left to itself,
+ * html-to-image rebuilds this on every capture: it re-fetches the Google Fonts
+ * stylesheets, inserts their @font-face rules into the page's first stylesheet
+ * (never removed), and base64-encodes every font file again — measured at ~4 MB
+ * of CSS retained per export with one web font loaded. Building it once per set
+ * of fonts and passing it as `fontEmbedCSS` skips all of that on later exports.
+ */
+const fontEmbedCache = new Map<string, Promise<string>>();
+
+function fontCacheKey(element: HTMLElement): string {
+  // Mirrors html-to-image's own used-font detection, so the key changes exactly
+  // when the embedded CSS would. The stylesheet count covers a font <link>
+  // added after the first export.
+  const fonts = new Set<string>();
+  const visit = (el: HTMLElement) => {
+    const family = el.style.fontFamily || getComputedStyle(el).fontFamily;
+    for (const f of family.split(",")) fonts.add(f.trim().replace(/["']/g, ""));
+    for (const child of Array.from(el.children)) {
+      if (child instanceof HTMLElement) visit(child);
+    }
+  };
+  visit(element);
+  return `${document.styleSheets.length}|${[...fonts].sort().join(",")}`;
+}
+
+async function fontEmbedCSSFor(element: HTMLElement): Promise<string | undefined> {
+  const key = fontCacheKey(element);
+  let css = fontEmbedCache.get(key);
+  if (!css) {
+    css = getFontEmbedCSS(element);
+    fontEmbedCache.set(key, css);
+  }
+  try {
+    return await css;
+  } catch (err) {
+    // Don't cache a failure; let html-to-image embed fonts its own way this time.
+    fontEmbedCache.delete(key);
+    console.warn("Could not prepare embedded fonts for export", err);
+    return undefined;
+  }
+}
+
+/**
  * Temporarily unscale the element and its parent for capture,
  * then restore after. This ensures html-to-image captures the
  * full-resolution ad regardless of preview zoom level.
@@ -68,11 +111,14 @@ async function captureElement(element: HTMLElement, size: AdSize): Promise<Blob>
   }
 
   try {
+    // No cacheBust: images are data URLs, and busting only defeats the HTTP
+    // cache for font files while growing html-to-image's internal URL cache
+    // with a new timestamped entry on every capture.
     const blob = await toBlob(element, {
       width: size.width,
       height: size.height,
       pixelRatio: 2,
-      cacheBust: true,
+      fontEmbedCSS: await fontEmbedCSSFor(element),
     });
     if (!blob) throw new Error("Failed to capture ad");
     return blob;
