@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.9.1 — October 26, 2026
+
+### Improvements
+
+- **Reconnecting the Shared Folder** — Clicking **Reconnect folder** no longer reads the whole shared folder straight away. After a break from the tool, Chrome asks for folder access again, and with Google Drive in Stream mode nothing is stored on the computer yet. Listing right after reconnecting meant downloading every ad set at once, which could stall the whole machine. The list now loads when you open **Open ad**, as it does at any other time
+- **Shared Folder Loading** — Listing the shared folder now has a time limit. A file Drive hasn't downloaded yet is skipped after a few seconds instead of holding everything up, and if several are slow in a row the picker shows what it has found with a **Try again** link instead of waiting. A **Stop** link appears while it loads, and closing the picker stops it too
+- **Repeated Exports** — PNG and zip exports no longer use more memory each time. Every export used to re-download and re-encode the ad's web fonts and keep the result, about 4 MB per export with one web font in use, so a tab used for a long session got steadily heavier. Fonts are now prepared once and reused, and later exports are also faster. Exported images look the same
+- **Folder Maintenance** — Adding `?maintenance` to the URL shows a maintenance panel under Shared Folder. It counts ad sets still saved in the old format, from before images were stored separately, and converts them. Names, dates and content stay the same. It reads every file in the folder, so run it only from a computer with Google Drive in Mirror mode
+
 ## v1.9.0 — September 25, 2026
 
 ### New Features

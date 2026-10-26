@@ -69,6 +69,10 @@ export type AdPickerModalProps = {
   localSets: AdSetMetadata[];
   sharedSets: AdSetMetadata[];
   sharedLoading?: boolean;
+  /** Shown when the last shared-folder scan stopped early. */
+  sharedNote?: string | null;
+  onCancelShared?: () => void;
+  onRetryShared?: () => void;
   currentId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -80,6 +84,9 @@ export function AdPickerModal({
   localSets,
   sharedSets,
   sharedLoading = false,
+  sharedNote = null,
+  onCancelShared,
+  onRetryShared,
   currentId,
   onSelect,
   onNew,
@@ -197,13 +204,29 @@ export function AdPickerModal({
             </div>
           )}
 
-          {sharedLoading && shared.length === 0 && (
-            <p className="text-center text-xs text-muted-foreground py-4">
-              Loading shared folder…
-            </p>
+          {sharedLoading && (
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-4">
+              <span>Loading shared folder…</span>
+              {onCancelShared && (
+                <button onClick={onCancelShared} className="underline hover:text-foreground">
+                  Stop
+                </button>
+              )}
+            </div>
           )}
 
-          {isEmpty && !sharedLoading && (
+          {!sharedLoading && sharedNote && (
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-3 px-3 text-center">
+              <span>{sharedNote}</span>
+              {onRetryShared && (
+                <button onClick={onRetryShared} className="underline hover:text-foreground flex-shrink-0">
+                  Try again
+                </button>
+              )}
+            </div>
+          )}
+
+          {isEmpty && !sharedLoading && !sharedNote && (
             <p className="text-center text-xs text-muted-foreground py-8">
               {query ? "No ads match your search." : "No saved ads yet."}
             </p>

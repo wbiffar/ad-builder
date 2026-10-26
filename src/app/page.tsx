@@ -22,6 +22,7 @@ import { AdForm } from "@/components/ad-form";
 import { InContextPreview } from "@/components/in-context-preview";
 import { AdPickerModal, UnsavedChangesDialog, ConfirmDeleteDialog } from "@/components/ad-picker-modal";
 import { VersionWatcher } from "@/components/version-watcher";
+import { FolderMaintenance } from "@/components/folder-maintenance";
 import { APP_VERSION } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -98,6 +99,12 @@ export default function AdCreatorPage() {
   const [sharedAdSets, setSharedAdSets] = useState<AdSetMetadata[]>([]);
   const [sharedListLoaded, setSharedListLoaded] = useState(false);
   const [sharedListLoading, setSharedListLoading] = useState(false);
+  // Set when the last scan stopped early (slow Drive files, budget, cancel).
+  const [sharedListNote, setSharedListNote] = useState<string | null>(null);
+  const listAbort = useRef<AbortController | null>(null);
+  // Folder maintenance (one-off legacy-file migration) is hidden behind
+  // ?maintenance so a single click can't trigger a folder-wide rewrite.
+  const [showMaintenance, setShowMaintenance] = useState(false);
   const [isOpeningSet, setIsOpeningSet] = useState(false);
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   // null = support not yet determined (avoids hydration flash); true/false once known.
@@ -179,19 +186,48 @@ export default function AdCreatorPage() {
   }, []);
 
   // Loads the shared-set list as metadata only (no image data). Called lazily
-  // when the picker opens or right after connecting — never on mount — so a
-  // Google Drive "Stream" folder is not swept on page load.
+  // when the picker opens — never on mount or on (re)connect — so a Google
+  // Drive "Stream" folder is only read when someone actually wants the list.
+  // The scan is time-boxed and cancellable; a partial result is shown as-is
+  // with a note, and stays un-"loaded" so the next open (or Retry) tries again.
   const loadSharedList = useCallback(async (handle: FileSystemDirectoryHandle) => {
+    listAbort.current?.abort();
+    const controller = new AbortController();
+    listAbort.current = controller;
     setSharedListLoading(true);
+    setSharedListNote(null);
     try {
-      setSharedAdSets(await listAdSetsMetadata(handle));
-      setSharedListLoaded(true);
+      const { sets, partial, stoppedBy } = await listAdSetsMetadata(handle, { signal: controller.signal });
+      if (listAbort.current !== controller) return; // superseded by a newer scan
+      setSharedAdSets(sets);
+      setSharedListLoaded(!partial);
+      if (partial) {
+        setSharedListNote(
+          stoppedBy === "cancel"
+            ? "Stopped loading the shared folder."
+            : "Some shared ads are still syncing from Google Drive and aren't listed yet."
+        );
+      }
     } catch (err) {
       console.error("Failed to load ad sets from folder", err);
       setFolderMessage("Failed to load ad sets from the shared folder.");
     } finally {
-      setSharedListLoading(false);
+      if (listAbort.current === controller) {
+        listAbort.current = null;
+        setSharedListLoading(false);
+      }
     }
+  }, []);
+
+  const cancelSharedList = useCallback(() => {
+    listAbort.current?.abort();
+  }, []);
+
+  // Stop any in-flight scan if the page unmounts.
+  useEffect(() => () => listAbort.current?.abort(), []);
+
+  useEffect(() => {
+    setShowMaintenance(new URLSearchParams(window.location.search).has("maintenance"));
   }, []);
 
   // Keeps the in-memory list in sync after a save without re-reading the folder.
@@ -233,22 +269,30 @@ export default function AdCreatorPage() {
       // would silently fail. (Restored handles re-request under the save click.)
       const handle = await pickDirectory();
       await storeDirectoryHandle(handle);
+      // Don't list the folder here. After time away, Drive "Stream" mode has
+      // nothing cached, so reading every file right after reconnecting is what
+      // froze machines; the list loads when the picker is opened instead.
+      listAbort.current?.abort();
       setDirHandle(handle);
+      setSharedAdSets([]);
+      setSharedListLoaded(false);
+      setSharedListNote(null);
       setNeedsReconnect(false);
       setFolderMessage(null);
-      await loadSharedList(handle);
     } catch (err) {
       if ((err as DOMException)?.name === "AbortError") return; // user cancelled the picker
       console.error("Failed to connect shared folder", err);
       setFolderMessage("Could not connect the folder.");
     }
-  }, [loadSharedList]);
+  }, []);
 
   const handleDisconnectFolder = useCallback(async () => {
+    listAbort.current?.abort();
     await clearDirectoryHandle();
     setDirHandle(null);
     setSharedAdSets([]);
     setSharedListLoaded(false);
+    setSharedListNote(null);
     setNeedsReconnect(false);
     setFolderMessage(null);
   }, []);
@@ -393,6 +437,14 @@ export default function AdCreatorPage() {
 
   // Opening the picker is the trigger to load the shared list — lazily, and only
   // once per connection — so the folder is read on user intent, not on mount.
+  const closePicker = useCallback(() => setShowPicker(false), []);
+
+  // However the picker closes (X, Escape, opening a set), abandon any scan
+  // still running rather than leave it reading files in the background.
+  useEffect(() => {
+    if (!showPicker) listAbort.current?.abort();
+  }, [showPicker]);
+
   const openPicker = () => {
     setShowPicker(true);
     if (dirHandle && !needsReconnect && !sharedListLoaded && !sharedListLoading) {
@@ -570,6 +622,15 @@ export default function AdCreatorPage() {
                       <Cloud className="size-3 mr-1.5" /> Connect Google Drive folder
                     </Button>
                   )}
+                  {showMaintenance && dirHandle && !needsReconnect && (
+                    <FolderMaintenance
+                      handle={dirHandle}
+                      onMigrated={() => {
+                        setSharedListLoaded(false);
+                        setSharedAdSets([]);
+                      }}
+                    />
+                  )}
                   {folderMessage && <p className="text-[11px] text-destructive">{folderMessage}</p>}
                 </div>
               </Card>
@@ -626,11 +687,14 @@ export default function AdCreatorPage() {
           localSets={savedAdSets}
           sharedSets={sharedAdSets}
           sharedLoading={sharedListLoading}
+          sharedNote={sharedListNote}
+          onCancelShared={cancelSharedList}
+          onRetryShared={dirHandle ? () => loadSharedList(dirHandle) : undefined}
           currentId={currentAdSetId}
           onSelect={requestLoadAdSet}
           onNew={requestNewAdSet}
           onDelete={requestDeleteAdSet}
-          onClose={() => setShowPicker(false)}
+          onClose={closePicker}
         />
       )}
 
