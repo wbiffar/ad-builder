@@ -6,28 +6,98 @@ export const LOGO_MAX_EDGE = 800;
 export const LOGO_MAX_BYTES = 150 * 1024;
 const MIN_RASTER_EDGE = 640;
 
-/**
- * Resize / recompress an upload without changing format.
- * SVG, PNG, and JPEG stay SVG / PNG / JPEG. Files already within the
- * edge and byte caps are stored as-is (no canvas re-encode).
- */
-export async function optimizeUpload(file: File, kind: "photo" | "logo"): Promise<string> {
-  if (file.type === "image/svg+xml") return fileToDataUrl(file);
-  const maxEdge = kind === "photo" ? PHOTO_MAX_EDGE : LOGO_MAX_EDGE;
-  const maxBytes = kind === "photo" ? PHOTO_MAX_BYTES : LOGO_MAX_BYTES;
-  try {
-    return await rasterizeSameFormat(file, maxEdge, maxBytes);
-  } catch (err) {
-    console.error("Image optimize failed; using original file", err);
-    return fileToDataUrl(file);
+// Hard limits checked before anything is decoded (DES-2312). Past these an
+// upload is refused outright rather than stored raw.
+export const UPLOAD_MAX_BYTES = 3 * 1024 * 1024;
+export const SVG_MAX_BYTES = 500 * 1024;
+// ~400 MB of decoded RGBA pixels at 100 MP; 50 MP keeps it near 200 MB.
+const MAX_DECODE_PIXELS = 50_000_000;
+
+export const ACCEPTED_UPLOAD_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+export const ACCEPTED_UPLOAD_ATTR = ACCEPTED_UPLOAD_TYPES.join(",");
+
+/** An upload that was refused; `message` is safe to show the user. */
+export class UploadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadError";
   }
 }
 
-function isJpeg(type: string): boolean {
-  return type === "image/jpeg" || type === "image/jpg";
+/**
+ * Resize / recompress an upload without changing format.
+ * SVG, PNG, JPEG, and WebP stay SVG / PNG / JPEG / WebP. Files already within
+ * the edge and byte caps are stored as-is (no canvas re-encode).
+ * Throws UploadError when the file is refused or can't be processed — the
+ * original is never stored as a fallback.
+ */
+export async function optimizeUpload(file: File, kind: "photo" | "logo"): Promise<string> {
+  const type = normalizeType(file.type);
+  if (!ACCEPTED_UPLOAD_TYPES.includes(type)) {
+    throw new UploadError("Unsupported file type. Use PNG, JPG, WebP, or SVG.");
+  }
+  if (file.size > UPLOAD_MAX_BYTES) {
+    throw new UploadError(`File is ${formatMb(file.size)}; the limit is ${formatMb(UPLOAD_MAX_BYTES)}.`);
+  }
+  if (type === "image/svg+xml") {
+    if (file.size > SVG_MAX_BYTES) {
+      throw new UploadError(
+        `SVG is ${formatKb(file.size)}; the limit is ${formatKb(SVG_MAX_BYTES)}. Export a simpler SVG, or upload a PNG instead.`
+      );
+    }
+    return fileToDataUrl(file);
+  }
+
+  const maxEdge = kind === "photo" ? PHOTO_MAX_EDGE : LOGO_MAX_EDGE;
+  const maxBytes = kind === "photo" ? PHOTO_MAX_BYTES : LOGO_MAX_BYTES;
+  try {
+    await assertDecodable(file);
+    return await rasterizeSameFormat(file, type, maxEdge, maxBytes);
+  } catch (err) {
+    if (err instanceof UploadError) throw err;
+    console.error("Image optimize failed", err);
+    throw new UploadError("Couldn't read this image. It may be damaged — try re-saving it as PNG or JPG.");
+  }
 }
 
-async function rasterizeSameFormat(file: File, maxEdge: number, maxBytes: number): Promise<string> {
+function normalizeType(type: string): string {
+  return type === "image/jpg" ? "image/jpeg" : type;
+}
+
+function formatMb(bytes: number): string {
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+}
+
+function formatKb(bytes: number): string {
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+/**
+ * Read the image's dimensions without decoding its pixels (an <img> that
+ * isn't drawn only parses the header), and refuse anything too large to
+ * decode safely.
+ */
+async function assertDecodable(file: File): Promise<void> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Image header could not be read"));
+      img.src = url;
+    });
+    const { naturalWidth: w, naturalHeight: h } = img;
+    if (w * h > MAX_DECODE_PIXELS) {
+      throw new UploadError(
+        `Image is ${w} × ${h} px, too large to process. Resize it under ${Math.round(MAX_DECODE_PIXELS / 1_000_000)} megapixels and try again.`
+      );
+    }
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function rasterizeSameFormat(file: File, type: string, maxEdge: number, maxBytes: number): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const longest = Math.max(bitmap.width, bitmap.height);
   if (longest <= maxEdge && file.size <= maxBytes) {
@@ -39,7 +109,7 @@ async function rasterizeSameFormat(file: File, maxEdge: number, maxBytes: number
   const canvas = drawToCanvas(bitmap, Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
   bitmap.close();
 
-  if (isJpeg(file.type)) return encodeJpeg(canvas, maxBytes);
+  if (type === "image/jpeg" || type === "image/webp") return encodeLossy(canvas, type, maxBytes);
   return encodePng(canvas, maxBytes);
 }
 
@@ -76,17 +146,17 @@ async function encodePng(canvas: HTMLCanvasElement, maxBytes: number): Promise<s
   return blobToDataUrl(blob);
 }
 
-async function encodeJpeg(canvas: HTMLCanvasElement, maxBytes: number): Promise<string> {
+async function encodeLossy(canvas: HTMLCanvasElement, type: string, maxBytes: number): Promise<string> {
   let current = canvas;
   let quality = 0.82;
-  let blob = await canvasToBlob(current, "image/jpeg", quality);
+  let blob = await canvasToBlob(current, type, quality);
   while (blob.size > maxBytes && quality > 0.5) {
     quality = Math.max(0.5, quality - 0.08);
-    blob = await canvasToBlob(current, "image/jpeg", quality);
+    blob = await canvasToBlob(current, type, quality);
   }
   while (blob.size > maxBytes && canShrink(current)) {
     current = shrinkCanvas(current, Math.min(0.85, Math.sqrt(maxBytes / blob.size)));
-    blob = await canvasToBlob(current, "image/jpeg", 0.7);
+    blob = await canvasToBlob(current, type, 0.7);
   }
   return blobToDataUrl(blob);
 }
