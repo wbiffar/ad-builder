@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.9.2 — October 27, 2026
+
+### Improvements
+
+- **Upload Limits** — Logo and photo uploads now have hard limits, so an oversized file can no longer end up in an ad and be copied into every size, saved and synced to the shared folder. Files over 3 MB are refused before they're opened, as are images over 50 megapixels, which would take hundreds of MB of memory to process. SVGs over 500 KB are refused instead of being stored as-is, since a "logo" SVG can carry a large photo inside it. In each case a short message under the upload area says why and nothing is saved
+- **Unreadable Images** — If an image can't be processed, for example a damaged file, you now see an error instead of the original file being saved unprocessed. Only PNG, JPG, WebP and SVG are accepted, for both the logo and the photo; HEIC, TIFF and other formats show an error. WebP is newly accepted and stays WebP, and the photo upload now takes SVG like the logo does. Normal PNG, JPG and small SVG uploads work as before
+
 ## v1.9.1 — October 26, 2026
 
 ### Improvements

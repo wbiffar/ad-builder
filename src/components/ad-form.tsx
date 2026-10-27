@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from "react";
 import { AdConfig, BrandColors, TemplateStyle, PhotoTreatment, ImagePlacement, LogoPlacement, DEFAULT_COLORS, DEFAULT_TAGLINE_STYLE, DEFAULT_DESCRIPTION_STYLE } from "@/lib/types";
 import { FONT_OPTIONS, loadGoogleFont } from "@/lib/fonts";
 import { extractColorsFromImage, generateBrandPalette, resolveTextColors } from "@/lib/color-utils";
-import { optimizeUpload } from "@/lib/image-optimize";
+import { ACCEPTED_UPLOAD_ATTR, UploadError, optimizeUpload } from "@/lib/image-optimize";
 import { setPreference, usePreference } from "@/lib/preferences";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,24 @@ function sameColors(a: BrandColors, b: BrandColors): boolean {
   return (["primary", "accent", "text", "description", "background"] as const).every(
     (k) => norm(a[k]) === norm(b[k])
   );
+}
+
+/**
+ * Optimize an upload, reporting a refusal through `setError` instead of
+ * storing anything. Returns null when the upload was refused.
+ */
+async function tryOptimize(
+  file: File,
+  kind: "photo" | "logo",
+  setError: (message: string | null) => void
+): Promise<string | null> {
+  setError(null);
+  try {
+    return await optimizeUpload(file, kind);
+  } catch (err) {
+    setError(err instanceof UploadError ? err.message : "Upload failed. Please try another file.");
+    return null;
+  }
 }
 
 type AdFormProps = {
@@ -86,6 +104,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const [pendingPalette, setPendingPalette] = useState<{ colors: BrandColors; swatches: string[] } | null>(null);
   const [logoDragActive, setLogoDragActive] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
+  // Why the last logo / photo upload was refused (DES-2312); cleared on the next try.
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Load selected Google Font
@@ -113,8 +134,8 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
 
   const processLogoFile = useCallback(
     async (file: File) => {
-      if (!file.type.startsWith("image/")) return;
-      const url = await optimizeUpload(file, "logo");
+      const url = await tryOptimize(file, "logo", setLogoError);
+      if (!url) return;
       // Clear the old logo's swatches while the new ones are extracted.
       update({ logoUrl: url, logoPalette: null });
 
@@ -189,6 +210,7 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const handleLogoUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
+      e.target.value = "";
       if (file) processLogoFile(file);
     },
     [processLogoFile]
@@ -216,9 +238,11 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
   const handleAdditionalImageUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
+      // Reset so picking the same file again after an error still fires onChange.
+      e.target.value = "";
       if (!file) return;
-      const url = await optimizeUpload(file, "photo");
-      applyPhoto(url);
+      const url = await tryOptimize(file, "photo", setPhotoError);
+      if (url) applyPhoto(url);
     },
     [applyPhoto]
   );
@@ -229,9 +253,9 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
       e.stopPropagation();
       setImageDragActive(false);
       const file = e.dataTransfer.files?.[0];
-      if (!file || !file.type.startsWith("image/")) return;
-      const url = await optimizeUpload(file, "photo");
-      applyPhoto(url);
+      if (!file) return;
+      const url = await tryOptimize(file, "photo", setPhotoError);
+      if (url) applyPhoto(url);
     },
     [applyPhoto]
   );
@@ -292,17 +316,20 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                 <div className="text-muted-foreground text-sm">
                   {logoDragActive ? "Drop logo here" : "Drop logo here or click to upload"}
                 </div>
-                <div className="text-muted-foreground text-xs mt-1">PNG, JPG, or SVG · resized to 800px</div>
+                <div className="text-muted-foreground text-xs mt-1">PNG, JPG, WebP, or SVG · resized to 800px</div>
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/svg+xml"
+                  accept={ACCEPTED_UPLOAD_ATTR}
                   className="hidden"
                   onChange={handleLogoUpload}
                 />
               </div>
             )}
           </div>
+          {logoError && (
+            <p role="alert" className="text-xs text-destructive">{logoError}</p>
+          )}
           {isExtractingColors && (
             <p className="text-xs text-muted-foreground">
               {generateFromLogo ? "Generating colors from logo..." : "Extracting logo colors..."}
@@ -771,17 +798,20 @@ export function AdForm({ config: rawConfig, onChange }: AdFormProps) {
                 <div className="text-muted-foreground text-xs">
                   {imageDragActive ? "Drop image here" : "Drop image here or click to upload"}
                 </div>
-                <div className="text-muted-foreground text-[10px] mt-0.5">PNG or JPG, kept as uploaded · max 1920px</div>
+                <div className="text-muted-foreground text-[10px] mt-0.5">PNG, JPG, WebP, or SVG, kept as uploaded · max 1920px</div>
                 <input
                   ref={imageInputRef}
                   type="file"
-                  accept="image/png,image/jpeg"
+                  accept={ACCEPTED_UPLOAD_ATTR}
                   className="hidden"
                   onChange={handleAdditionalImageUpload}
                 />
               </div>
             )}
           </div>
+          {photoError && (
+            <p role="alert" className="text-xs text-destructive">{photoError}</p>
+          )}
 
           {/* Photo Treatment — shown when image uploaded */}
           {config.additionalImageUrl && (
